@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover'>
+    <title>Мобильный Чат</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f0f2f5;
+            height: 100dvh; /* Используем динамическую высоту */
+            height: -webkit-fill-available;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            left: 0;
+        }
+        
+        #chat {
+            width: 100%;
+            height: 100%;
+            max-width: 500px;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        
+        #header {
+            background: #075E54;
+            color: white;
+            padding: 12px 16px;
+            padding-top: calc(12px + env(safe-area-inset-top, 0px));
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 20;
+            flex-shrink: 0;
+        }
+        
+        #header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        #device-name {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        
+        #status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
+        .connected {
+            background: #25D366;
+        }
+        
+        .disconnected {
+            background: #f44336;
+        }
+        
+        #users {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-bottom: 1px solid #e0e0e0;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            flex-shrink: 0;
+        }
+        
+        .user {
+            display: inline-block;
+            background: #e0e0e0;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            margin-right: 8px;
+        }
+        
+        .user.online {
+            background: #DCF8C6;
+        }
+        
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            padding-bottom: 5px;
+            background: #e5ddd5;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .message {
+            max-width: 80%;
+            padding: 8px 12px;
+            border-radius: 7px;
+            position: relative;
+            word-wrap: break-word;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .my {
+            background: #DCF8C6;
+            align-self: flex-end;
+        }
+        
+        .other {
+            background: white;
+            align-self: flex-start;
+        }
+        
+        .system {
+            background: rgba(0,0,0,0.5);
+            color: white;
+            align-self: center;
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 15px;
+            max-width: 90%;
+            text-align: center;
+        }
+        
+        .message small {
+            font-size: 10px;
+            opacity: 0.6;
+            display: block;
+            margin-top: 4px;
+        }
+        
+        .my small {
+            text-align: right;
+        }
+        
+        /* Критически важно - поле ввода теперь всегда видимо */
+        #input-area {
+            background: #f0f0f0;
+            padding: 8px 12px;
+            padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            border-top: 1px solid #ddd;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 30;
+            /* Фиксируем видимость */
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+        }
+        
+        #text {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px; /* Чуть больше для мобильных */
+            outline: none;
+            background: white;
+            -webkit-appearance: none;
+        }
+        
+        .action-btn {
+            width: 44px; /* Больше для удобства тыка */
+            height: 44px;
+            border-radius: 50%;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .action-btn:active {
+            transform: scale(0.95);
+            opacity: 0.8;
+        }
+        
+        #file-btn {
+            background: #2196F3;
+        }
+        
+        #send-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: #075E54;
+            color: white;
+            border: none;
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+        
+        #send-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        #connect-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #075E54;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            z-index: 1000;
+            transition: transform 0.3s ease-out;
+            overflow: hidden;
+        }
+        
+        #connect-screen.hidden {
+            transform: translateY(-100%);
+        }
+        
+        #connect-screen h1 {
+            color: white;
+            font-size: 32px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        #connect-screen input {
+            width: 100%;
+            max-width: 300px;
+            padding: 15px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            text-align: center;
+            -webkit-appearance: none;
+        }
+        
+        #connect-screen button {
+            width: 100%;
+            max-width: 300px;
+            padding: 15px;
+            background: #25D366;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        #online-count {
+            background: #128C7E;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        
+        #upload-progress {
+            display: none;
+            padding: 8px;
+            background: #e3f2fd;
+            border-radius: 5px;
+            margin: 5px;
+            font-size: 12px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        
+        #file-input {
+            display: none;
+        }
+        
+        .media-preview {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 10px;
+            margin-top: 5px;
+            cursor: pointer;
+        }
+        
+        .file-link {
+            color: inherit;
+            text-decoration: none;
+            display: inline-block;
+            padding: 5px 10px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 5px;
+        }
+        
+        #button-panel {
+            display: flex;
+            gap: 5px;
+            flex-shrink: 0;
+        }
+
+        /* Стили для мобильных устройств */
+        @media (max-width: 500px) {
+            #text {
+                font-size: 16px;
+                padding: 12px 16px;
+            }
+            
+            .action-btn, #send-btn {
+                width: 48px;
+                height: 48px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id='chat'>
+        <!-- Экран подключения -->
+        <div id='connect-screen'>
+            <h1>💬 Чат</h1>
+            <input type='text' id='device-input' placeholder='Твое имя' value='User' autocomplete='off' inputmode='text'>
+            <button onclick='connect()'>Войти в чат</button>
+        </div>
+
+        <!-- Основной чат -->
+        <div id='header'>
+            <div id='header-left'>
+                <span id='device-name'></span>
+                <span id='online-count'>0</span>
+            </div>
+            <div>
+                <span id='status' class='disconnected'>🔴</span>
+            </div>
+        </div>
+        
+        <div id='users'></div>
+        
+        <div id='messages'>
+            <div class='message system'>👋 Добро пожаловать!</div>
+        </div>
+        
+        <div id='upload-progress'></div>
+        
+        <div id='input-area'>
+            <input type='text' id='text' placeholder='Написать сообщение...' autocomplete='off' inputmode='text'>
+            <input type='file' id='file-input' accept='image/*,video/*,audio/*,*/*'>
+            <div id='button-panel'>
+                <button id='file-btn' class='action-btn' onclick='selectFile()'>📎</button>
+                <button id='send-btn' onclick='send()' disabled>➤</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let device = '';
+        let connected = false;
+        const WS_URL = 'ws://188.92.28.209:8080/ws/chat/';
+
+        // Функция для корректировки положения при появлении клавиатуры
+        function setupKeyboardHandler() {
+            const inputArea = document.getElementById('input-area');
+            const originalHeight = window.innerHeight;
+            
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', () => {
+                    const visualViewport = window.visualViewport;
+                    
+                    // Если клавиатура открыта
+                    if (visualViewport.height < originalHeight * 0.8) {
+                        const keyboardHeight = originalHeight - visualViewport.height;
+                        inputArea.style.transform = `translateY(-${keyboardHeight}px)`;
+                        inputArea.style.position = 'relative';
+                        inputArea.style.zIndex = '100';
+                    } else {
+                        inputArea.style.transform = 'translateY(0)';
+                    }
+                });
+            }
+            
+            // Прокрутка к полю ввода при фокусе
+            document.getElementById('text').addEventListener('focus', () => {
+                setTimeout(() => {
+                    document.getElementById('text').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 300);
+            });
+        }
+
+        function connect() {
+            device = document.getElementById('device-input').value.trim();
+            if (!device) device = 'User' + Math.floor(Math.random() * 1000);
+
+            document.getElementById('device-name').innerText = device;
+            document.getElementById('connect-screen').classList.add('hidden');
+            
+            ws = new WebSocket(WS_URL + encodeURIComponent(device));
+
+            ws.onopen = function() {
+                connected = true;
+                updateUI();
+                addSystemMessage('✅ Подключился к чату');
+                setupKeyboardHandler(); // Активируем обработку клавиатуры
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'message') {
+                        addMessage(data);
+                    } else if (data.type === 'users') {
+                        updateUsers(data.users);
+                    } else if (data.type === 'history') {
+                        document.getElementById('messages').innerHTML = '';
+                        if (data.messages && data.messages.length > 0) {
+                            data.messages.forEach(msg => addMessage(msg));
+                            addSystemMessage('📜 Загружена история (' + data.messages.length + ' сообщений)');
+                        }
+                    }
+                } catch (e) {
+                    console.error('Ошибка парсинга:', e);
+                }
+            };
+
+            ws.onclose = function() {
+                connected = false;
+                updateUI();
+                addSystemMessage('❌ Отключился от чата');
+                document.getElementById('connect-screen').classList.remove('hidden');
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket ошибка:', error);
+                addSystemMessage('❌ Ошибка подключения');
+            };
+        }
+
+        function send() {
+            if (!connected) return;
+            const text = document.getElementById('text').value.trim();
+            if (!text) return;
+            ws.send(JSON.stringify({type:'message', text:text}));
+            document.getElementById('text').value = '';
+        }
+
+        function selectFile() {
+            document.getElementById('file-input').click();
+        }
+
+        document.getElementById('file-input').onchange = function() {
+            if (!this.files || this.files.length === 0) return;
+            
+            const file = this.files[0];
+            const progress = document.getElementById('upload-progress');
+            progress.style.display = 'block';
+            progress.innerHTML = '⏫ Загрузка: ' + file.name + '...';
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('sender', device);
+            
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    let fileType = data.file_type || 'file';
+                    const message = {
+                        type: 'message',
+                        text: '📎 ' + file.name,
+                        fileId: data.file_id,
+                        fileName: file.name,
+                        fileType: fileType
+                    };
+                    ws.send(JSON.stringify(message));
+                    progress.innerHTML = '✅ Загружено: ' + file.name;
+                    setTimeout(() => progress.style.display = 'none', 2000);
+                }
+            })
+            .catch(err => {
+                progress.innerHTML = '❌ Ошибка: ' + err;
+                setTimeout(() => progress.style.display = 'none', 3000);
+            });
+            
+            this.value = '';
+        };
+
+        function addMessage(msg) {
+            const messagesDiv = document.getElementById('messages');
+            const div = document.createElement('div');
+            
+            if (msg.sender === 'system') {
+                div.className = 'message system';
+                div.innerHTML = msg.text;
+            } else {
+                div.className = 'message ' + (msg.sender === device ? 'my' : 'other');
+                
+                const time = msg.time ? msg.time.substring(11, 16) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const sender = msg.sender === device ? 'Я' : msg.sender;
+                
+                let content = '<b>' + sender + ':</b> ';
+                
+                if (msg.fileId) {
+                    if (msg.fileType === 'image') {
+                        content += '<div><img src="/file/' + msg.fileId + '" class="media-preview" onclick="window.open(\'/file/' + msg.fileId + '\')"></div>';
+                    } else if (msg.fileType === 'video') {
+                        content += '<div><video src="/file/' + msg.fileId + '" controls style="max-width:200px; max-height:200px;"></video></div>';
+                    } else if (msg.fileType === 'audio') {
+                        content += '<div><audio src="/file/' + msg.fileId + '" controls></audio></div>';
+                    } else {
+                        content += '<div><a href="/download/' + msg.fileId + '" class="file-link">📎 ' + (msg.fileName || 'Файл') + '</a></div>';
+                    }
+                }
+                
+                content += msg.text && !msg.text.startsWith('📎') ? msg.text : '';
+                content += '<small>' + time + '</small>';
+                div.innerHTML = content;
+            }
+            
+            messagesDiv.appendChild(div);
+            div.scrollIntoView({behavior: 'smooth', block: 'end'});
+        }
+
+        function addSystemMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'message system';
+            div.innerHTML = text;
+            document.getElementById('messages').appendChild(div);
+            div.scrollIntoView({behavior: 'smooth', block: 'end'});
+        }
+
+        function updateUsers(users) {
+            const usersDiv = document.getElementById('users');
+            usersDiv.innerHTML = '';
+            document.getElementById('online-count').innerText = users.length;
+            users.forEach(u => {
+                const span = document.createElement('span');
+                span.className = 'user online';
+                span.innerHTML = '🟢 ' + u.device;
+                usersDiv.appendChild(span);
+            });
+        }
+
+        function updateUI() {
+            const status = document.getElementById('status');
+            const text = document.getElementById('text');
+            const sendBtn = document.getElementById('send-btn');
+
+            if (connected) {
+                status.className = 'connected';
+                status.innerHTML = '🟢';
+                text.disabled = false;
+                sendBtn.disabled = false;
+                // Автофокус на поле ввода
+                setTimeout(() => text.focus(), 300);
+            } else {
+                status.className = 'disconnected';
+                status.innerHTML = '🔴';
+                text.disabled = true;
+                sendBtn.disabled = true;
+            }
+        }
+
+        // Обработчики событий
+        document.getElementById('text').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && connected) send();
+        });
+
+        document.getElementById('device-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') connect();
+        });
+
+        // Предотвращаем зумирование при фокусе на инпутах
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('focus', () => {
+                document.body.style.zoom = '1';
+            });
+        });
+    </script>
+</body>
+</html>

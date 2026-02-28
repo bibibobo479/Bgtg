@@ -1,0 +1,25 @@
+# Сборка
+target/
+*.log
+*.lock
+*.iml
+.idea/
+.classpath
+.project
+.settings/
+
+# База данных
+*.db
+*.db-journal
+
+# Загруженные файлы
+uploads/
+*.tmp
+
+# Логи
+*.log
+nohup.out
+
+# Системные файлы
+.DS_Store
+Thumbs.db
