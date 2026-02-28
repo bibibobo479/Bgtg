@@ -15,7 +15,7 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background: #f0f2f5;
-            height: 100dvh; /* Используем динамическую высоту */
+            height: 100dvh;
             height: -webkit-fill-available;
             overflow: hidden;
             position: fixed;
@@ -152,7 +152,6 @@
             text-align: right;
         }
         
-        /* Критически важно - поле ввода теперь всегда видимо */
         #input-area {
             background: #f0f0f0;
             padding: 8px 12px;
@@ -164,9 +163,10 @@
             flex-shrink: 0;
             position: relative;
             z-index: 30;
-            /* Фиксируем видимость */
             transform: translateZ(0);
             -webkit-transform: translateZ(0);
+            /* Фиксируем положение */
+            transition: none !important;
         }
         
         #text {
@@ -175,14 +175,14 @@
             padding: 10px 16px;
             border: none;
             border-radius: 25px;
-            font-size: 16px; /* Чуть больше для мобильных */
+            font-size: 16px;
             outline: none;
             background: white;
             -webkit-appearance: none;
         }
         
         .action-btn {
-            width: 44px; /* Больше для удобства тыка */
+            width: 44px;
             height: 44px;
             border-radius: 50%;
             background: #4CAF50;
@@ -326,7 +326,6 @@
             flex-shrink: 0;
         }
 
-        /* Стили для мобильных устройств */
         @media (max-width: 500px) {
             #text {
                 font-size: 16px;
@@ -342,14 +341,12 @@
 </head>
 <body>
     <div id='chat'>
-        <!-- Экран подключения -->
         <div id='connect-screen'>
             <h1>💬 Чат</h1>
             <input type='text' id='device-input' placeholder='Твое имя' value='User' autocomplete='off' inputmode='text'>
             <button onclick='connect()'>Войти в чат</button>
         </div>
 
-        <!-- Основной чат -->
         <div id='header'>
             <div id='header-left'>
                 <span id='device-name'></span>
@@ -384,33 +381,49 @@
         let connected = false;
         const WS_URL = 'ws://188.92.28.209:8080/ws/chat/';
 
-        // Функция для корректировки положения при появлении клавиатуры
+        // Исправленная функция для работы с клавиатурой
         function setupKeyboardHandler() {
-            const inputArea = document.getElementById('input-area');
+            const chat = document.getElementById('chat');
+            const messages = document.getElementById('messages');
+            const input = document.getElementById('text');
             const originalHeight = window.innerHeight;
             
-            if (window.visualViewport) {
-                window.visualViewport.addEventListener('resize', () => {
-                    const visualViewport = window.visualViewport;
-                    
-                    // Если клавиатура открыта
-                    if (visualViewport.height < originalHeight * 0.8) {
-                        const keyboardHeight = originalHeight - visualViewport.height;
-                        inputArea.style.transform = `translateY(-${keyboardHeight}px)`;
-                        inputArea.style.position = 'relative';
-                        inputArea.style.zIndex = '100';
-                    } else {
-                        inputArea.style.transform = 'translateY(0)';
-                    }
-                });
+            // Фиксируем высоту чата при изменении размера окна
+            function fixLayout() {
+                const currentHeight = window.innerHeight;
+                chat.style.height = currentHeight + 'px';
+                
+                // Прокручиваем сообщения вниз при открытии клавиатуры
+                if (currentHeight < originalHeight) {
+                    setTimeout(() => {
+                        messages.scrollTop = messages.scrollHeight;
+                    }, 100);
+                }
             }
             
-            // Прокрутка к полю ввода при фокусе
-            document.getElementById('text').addEventListener('focus', () => {
+            // Слушаем изменения размера окна (появление клавиатуры)
+            window.addEventListener('resize', fixLayout);
+            
+            // При фокусе на инпуте
+            input.addEventListener('focus', function() {
+                // Небольшая задержка для появления клавиатуры
                 setTimeout(() => {
-                    document.getElementById('text').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    messages.scrollTop = messages.scrollHeight;
                 }, 300);
             });
+            
+            // Предотвращаем автоматический скролл страницы
+            input.addEventListener('touchstart', function(e) {
+                e.stopPropagation();
+            });
+            
+            // Фиксируем позицию при скролле
+            messages.addEventListener('touchstart', function() {
+                messages.style.overflowY = 'auto';
+            });
+            
+            // Вызываем сразу для установки правильной высоты
+            fixLayout();
         }
 
         function connect() {
@@ -467,6 +480,11 @@
             if (!text) return;
             ws.send(JSON.stringify({type:'message', text:text}));
             document.getElementById('text').value = '';
+            
+            // Прокручиваем вниз после отправки
+            setTimeout(() => {
+                document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+            }, 50);
         }
 
         function selectFile() {
@@ -579,7 +597,6 @@
                 status.innerHTML = '🟢';
                 text.disabled = false;
                 sendBtn.disabled = false;
-                // Автофокус на поле ввода
                 setTimeout(() => text.focus(), 300);
             } else {
                 status.className = 'disconnected';
@@ -589,7 +606,6 @@
             }
         }
 
-        // Обработчики событий
         document.getElementById('text').addEventListener('keypress', function(e) {
             if (e.key === 'Enter' && connected) send();
         });
@@ -598,11 +614,19 @@
             if (e.key === 'Enter') connect();
         });
 
-        // Предотвращаем зумирование при фокусе на инпутах
         document.querySelectorAll('input').forEach(input => {
             input.addEventListener('focus', () => {
                 document.body.style.zoom = '1';
             });
+        });
+
+        // Предотвращаем автоматическое изменение масштаба
+        window.addEventListener('load', function() {
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', function() {
+                    document.body.style.zoom = '1';
+                });
+            }
         });
     </script>
 </body>
