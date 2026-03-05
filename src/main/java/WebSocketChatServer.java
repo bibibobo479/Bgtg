@@ -14,6 +14,7 @@ import java.time.format.DateTimeFormatter;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.file.*;
+import java.nio.ByteBuffer;
 import java.util.concurrent.Executors;
 
 public class WebSocketChatServer {
@@ -173,6 +174,29 @@ public class WebSocketChatServer {
         }
     }
     
+    // Санитизация имени файла
+    private static String sanitizeFilename(String filename) {
+        return filename.replaceAll("[^a-zA-Z0-9\\.\\-]", "_");
+    }
+    
+    // Определение типа файла
+    private static String getFileType(String filename) {
+        String ext = "";
+        int lastDot = filename.lastIndexOf('.');
+        if (lastDot > 0) {
+            ext = filename.substring(lastDot + 1).toLowerCase();
+        }
+        
+        Set<String> imageExts = new HashSet<>(Arrays.asList("png", "jpg", "jpeg", "gif", "bmp", "webp"));
+        Set<String> videoExts = new HashSet<>(Arrays.asList("mp4", "avi", "mov", "mkv", "webm"));
+        Set<String> audioExts = new HashSet<>(Arrays.asList("mp3", "wav", "ogg", "m4a", "aac"));
+        
+        if (imageExts.contains(ext)) return "image";
+        if (videoExts.contains(ext)) return "video";
+        if (audioExts.contains(ext)) return "audio";
+        return "file";
+    }
+    
     // Класс пользователя
     static class User {
         String deviceName;
@@ -186,14 +210,72 @@ public class WebSocketChatServer {
         }
     }
     
+    // Класс для сборки файла из чанков
+    static class FileAssembly {
+        String fileName;
+        String fileType;
+        String sender;
+        java.io.File tempFile;
+        java.io.FileOutputStream fileStream;
+        long totalBytes = 0;
+        
+        void start(String fileName, String fileType, String sender) throws Exception {
+            this.fileName = fileName;
+            this.fileType = fileType;
+            this.sender = sender;
+            // Создаем временный файл
+            this.tempFile = java.io.File.createTempFile("upload_", "_" + sanitizeFilename(fileName));
+            this.fileStream = new java.io.FileOutputStream(tempFile);
+            System.out.println("📁 Создан временный файл: " + tempFile.getAbsolutePath());
+        }
+        
+        void append(byte[] chunk) throws Exception {
+            if (fileStream != null) {
+                fileStream.write(chunk);
+                totalBytes += chunk.length;
+            }
+        }
+        
+        String finish() throws Exception {
+            if (fileStream != null) {
+                fileStream.close();
+                
+                // Генерируем fileId
+                String fileId = UUID.randomUUID().toString();
+                String safeFilename = fileId + "_" + sanitizeFilename(fileName);
+                Path destPath = Paths.get(UPLOAD_DIR, safeFilename);
+                
+                // Перемещаем временный файл
+                Files.move(tempFile.toPath(), destPath, StandardCopyOption.REPLACE_EXISTING);
+                
+                // Сохраняем информацию в БД
+                saveFileInfo(fileId, fileName, sender, fileType, totalBytes, destPath.toString());
+                
+                System.out.println("✅ Файл сохранен: " + fileName + ", размер: " + totalBytes + ", ID: " + fileId);
+                return fileId;
+            }
+            return null;
+        }
+        
+        void cleanup() {
+            if (fileStream != null) {
+                try { fileStream.close(); } catch (Exception e) {}
+            }
+            if (tempFile != null && tempFile.exists()) {
+                try { tempFile.delete(); } catch (Exception e) {}
+            }
+        }
+    }
+    
     @ServerEndpoint("/chat/{device}")
     public static class ChatEndpoint {
+        private static final Map<Session, FileAssembly> fileAssemblies = new ConcurrentHashMap<>();
         
         @OnOpen
         public void onOpen(Session session, @PathParam("device") String device) {
             clients.put(device, session);
             users.put(device, new User(device, device));
-            
+            fileAssemblies.put(session, new FileAssembly());
             System.out.println("🔌 Подключен: " + device);
             System.out.println("📊 Всего клиентов: " + clients.size());
             
@@ -226,13 +308,30 @@ public class WebSocketChatServer {
             broadcastToAll(json);
         }
         
+        // Обработка текстовых сообщений (включая метаданные файлов)
         @OnMessage
         public void onMessage(String message, Session session, @PathParam("device") String device) {
-            System.out.println("📩 От " + device + ": " + message);
+            System.out.println("📩 Текстовое сообщение от " + device + ": " + message);
             
             try {
                 Map<String, Object> msgData = gson.fromJson(message, Map.class);
                 String type = (String) msgData.get("type");
+                
+                // Если это метаданные для загрузки файла
+                if ("file_metadata".equals(type)) {
+                    String fileName = (String) msgData.get("fileName");
+                    String fileType = (String) msgData.get("fileType");
+                    
+                    // Сохраняем в сборщике файлов для этой сессии
+                    FileAssembly assembly = fileAssemblies.get(session);
+                    if (assembly != null) {
+                        assembly.start(fileName, fileType, device);
+                        System.out.println("📋 Метаданные файла: " + fileName + " (" + fileType + ")");
+                    }
+                    return;
+                }
+                
+                // Обычное текстовое сообщение
                 String text = (String) msgData.get("text");
                 String fileId = (String) msgData.get("fileId");
                 String fileName = (String) msgData.get("fileName");
@@ -260,8 +359,62 @@ public class WebSocketChatServer {
             }
         }
         
+        // Обработка бинарных сообщений (чанки файлов)
+        @OnMessage
+        public void onMessage(ByteBuffer message, boolean last, Session session, @PathParam("device") String device) {
+            System.out.println("📩 Получен бинарный чанк от " + device + ", размер: " + message.remaining() + " байт, последний: " + last);
+            
+            FileAssembly assembly = fileAssemblies.get(session);
+            if (assembly == null) {
+                System.out.println("❌ Нет сборщика для сессии");
+                return;
+            }
+            
+            try {
+                // Получаем байты из буфера
+                byte[] chunk = new byte[message.remaining()];
+                message.get(chunk);
+                
+                // Добавляем чанк
+                assembly.append(chunk);
+                
+                // Если это последний чанк, финализируем файл
+                if (last) {
+                    String fileId = assembly.finish();
+                    fileAssemblies.remove(session);
+                    
+                    // Отправляем подтверждение клиенту
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("type", "upload_complete");
+                    response.put("fileId", fileId);
+                    response.put("fileName", assembly.fileName);
+                    response.put("fileType", assembly.fileType);
+                    response.put("size", assembly.totalBytes);
+                    
+                    String json = gson.toJson(response);
+                    session.getAsyncRemote().sendText(json);
+                    
+                    System.out.println("✅ Файл загружен полностью: " + assembly.fileName);
+                }
+                
+            } catch (Exception e) {
+                System.err.println("❌ Ошибка при загрузке чанка: " + e.getMessage());
+                e.printStackTrace();
+                
+                // Очищаем при ошибке
+                FileAssembly failedAssembly = fileAssemblies.remove(session);
+                if (failedAssembly != null) {
+                    failedAssembly.cleanup();
+                }
+            }
+        }
+        
         @OnClose
         public void onClose(Session session, @PathParam("device") String device) {
+            FileAssembly assembly = fileAssemblies.remove(session);
+            if (assembly != null) {
+                assembly.cleanup();
+            }
             clients.remove(device);
             users.remove(device);
             System.out.println("🔌 Отключен: " + device);
@@ -282,6 +435,10 @@ public class WebSocketChatServer {
         @OnError
         public void onError(Session session, Throwable error) {
             System.out.println("❌ Ошибка: " + error.getMessage());
+            FileAssembly assembly = fileAssemblies.remove(session);
+            if (assembly != null) {
+                assembly.cleanup();
+            }
         }
         
         private void sendHistory(Session session) {
@@ -321,7 +478,7 @@ public class WebSocketChatServer {
         }
     }
     
-    // Обработчик загрузки файлов
+    // Обработчик загрузки файлов (HTTP, для обратной совместимости)
     static class FileUploadHandler implements HttpHandler {
         
         @Override
@@ -399,7 +556,7 @@ public class WebSocketChatServer {
                 
                 sendJson(exchange, 200, response);
                 
-                System.out.println("📁 Файл сохранен: " + filename + " (" + fileType + ") от " + sender);
+                System.out.println("📁 Файл сохранен (HTTP): " + filename + " (" + fileType + ") от " + sender);
                 
             } catch (Exception e) {
                 e.printStackTrace();
@@ -407,27 +564,6 @@ public class WebSocketChatServer {
             } finally {
                 exchange.close();
             }
-        }
-        
-        private String getFileType(String filename) {
-            String ext = "";
-            int lastDot = filename.lastIndexOf('.');
-            if (lastDot > 0) {
-                ext = filename.substring(lastDot + 1).toLowerCase();
-            }
-            
-            Set<String> imageExts = new HashSet<>(Arrays.asList("png", "jpg", "jpeg", "gif", "bmp", "webp"));
-            Set<String> videoExts = new HashSet<>(Arrays.asList("mp4", "avi", "mov", "mkv", "webm"));
-            Set<String> audioExts = new HashSet<>(Arrays.asList("mp3", "wav", "ogg", "m4a", "aac"));
-            
-            if (imageExts.contains(ext)) return "image";
-            if (videoExts.contains(ext)) return "video";
-            if (audioExts.contains(ext)) return "audio";
-            return "file";
-        }
-        
-        private String sanitizeFilename(String filename) {
-            return filename.replaceAll("[^a-zA-Z0-9\\.\\-]", "_");
         }
         
         private void sendJson(HttpExchange exchange, int code, Object data) throws IOException {
