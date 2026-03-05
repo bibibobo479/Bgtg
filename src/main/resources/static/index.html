@@ -373,286 +373,279 @@
         </div>
     </div>
 
-    <script>
-        let ws = null;
-        let device = '';
-        let connected = false;
-        const WS_URL = 'ws://188.92.28.209:8080/ws/chat/';
+<script>
+    let ws = null;
+    let device = '';
+    let connected = false;
+    const WS_URL = 'ws://188.92.28.209:8080/ws/chat/';
+    let typingTimeout = null;
 
-        function setupKeyboardHandler() {
-            const chat = document.getElementById('chat');
-            const messages = document.getElementById('messages');
-            const input = document.getElementById('text');
-            const originalHeight = window.innerHeight;
+    function setupKeyboardHandler() {
+        const chat = document.getElementById('chat');
+        const messages = document.getElementById('messages');
+        const input = document.getElementById('text');
+        const originalHeight = window.innerHeight;
+        
+        function fixLayout() {
+            const currentHeight = window.innerHeight;
+            chat.style.height = currentHeight + 'px';
             
-            function fixLayout() {
-                const currentHeight = window.innerHeight;
-                chat.style.height = currentHeight + 'px';
-                
-                if (currentHeight < originalHeight) {
-                    setTimeout(() => {
-                        messages.scrollTop = messages.scrollHeight;
-                    }, 100);
-                }
-            }
-            
-            window.addEventListener('resize', fixLayout);
-            
-            input.addEventListener('focus', function() {
+            if (currentHeight < originalHeight) {
                 setTimeout(() => {
                     messages.scrollTop = messages.scrollHeight;
-                }, 300);
-            });
-            
-            fixLayout();
+                }, 100);
+            }
         }
-
-        function connect() {
-            device = document.getElementById('device-input').value.trim();
-            if (!device) device = 'User' + Math.floor(Math.random() * 1000);
-
-            document.getElementById('device-name').innerText = device;
-            document.getElementById('connect-screen').classList.add('hidden');
-            
-            ws = new WebSocket(WS_URL + encodeURIComponent(device));
-
-            ws.onopen = function() {
-                connected = true;
-                updateUI();
-                addSystemMessage('✅ Подключился к чату');
-                setupKeyboardHandler();
-            };
-
-            ws.onmessage = function(event) {
-                if (typeof event.data === 'string') {
-                    // Текстовое сообщение (JSON)
-                    try {
-                        const data = JSON.parse(event.data);
-                        
-                        if (data.type === 'message') {
-                            addMessage(data);
-                        } else if (data.type === 'users') {
-                            updateUsers(data.users);
-                        } else if (data.type === 'history') {
-                            document.getElementById('messages').innerHTML = '';
-                            if (data.messages && data.messages.length > 0) {
-                                data.messages.forEach(msg => addMessage(msg));
-                                addSystemMessage('📜 Загружена история (' + data.messages.length + ' сообщений)');
-                            }
-                        } else if (data.type === 'upload_complete') {
-                            const progress = document.getElementById('upload-progress');
-                            progress.innerHTML = `✅ Загружено: ${data.fileName}`;
-                            setTimeout(() => progress.style.display = 'none', 2000);
-                            
-                            // Автоматически отправляем сообщение о файле
-                            const message = {
-                                type: 'message',
-                                text: '📎 ' + data.fileName,
-                                fileId: data.fileId,
-                                fileName: data.fileName,
-                                fileType: data.fileType
-                            };
-                            ws.send(JSON.stringify(message));
-                        }
-                    } catch (e) {
-                        console.error('Ошибка парсинга JSON:', e);
-                    }
-                } else {
-                    // Бинарные данные (получение файла)
-                    console.log('📦 Получен бинарный чанк, размер:', event.data.byteLength || event.data.size);
-                }
-            };
-
-            ws.onclose = function() {
-                connected = false;
-                updateUI();
-                addSystemMessage('❌ Отключился от чата');
-                document.getElementById('connect-screen').classList.remove('hidden');
-            };
-
-            ws.onerror = function(error) {
-                console.error('WebSocket ошибка:', error);
-                addSystemMessage('❌ Ошибка подключения');
-            };
-        }
-
-        function send() {
-            if (!connected) return;
-            const text = document.getElementById('text').value.trim();
-            if (!text) return;
-            ws.send(JSON.stringify({type:'message', text:text}));
-            document.getElementById('text').value = '';
-            
+        
+        window.addEventListener('resize', fixLayout);
+        
+        input.addEventListener('focus', function() {
             setTimeout(() => {
-                document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-            }, 50);
-        }
+                messages.scrollTop = messages.scrollHeight;
+            }, 300);
+        });
+        
+        fixLayout();
+    }
 
-        function selectFile() {
-            document.getElementById('file-input').click();
-        }
+    function connect() {
+        device = document.getElementById('device-input').value.trim();
+        if (!device) device = 'User' + Math.floor(Math.random() * 1000);
 
-        document.getElementById('file-input').onchange = function() {
-            if (!this.files || this.files.length === 0) return;
-            
-            const file = this.files[0];
-            
-            // Проверка размера (макс 100 МБ)
-            if (file.size > 100 * 1024 * 1024) {
-                alert('Файл слишком большой! Максимум 100 МБ');
-                return;
-            }
-            
-            // Проверяем соединение
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-                alert('Нет соединения с сервером');
-                return;
-            }
-            
-            // Отправляем метаданные файла
-            const metadata = {
-                type: 'file_metadata',
-                fileName: file.name,
-                fileType: file.type.startsWith('image/') ? 'image' : 
-                         file.type.startsWith('video/') ? 'video' : 
-                         file.type.startsWith('audio/') ? 'audio' : 'file',
-                fileSize: file.size
-            };
-            ws.send(JSON.stringify(metadata));
-            
-            // Отправляем файл чанками
-            const chunkSize = 64 * 1024; // 64 КБ
-            let offset = 0;
-            
-            const progress = document.getElementById('upload-progress');
-            progress.style.display = 'block';
-            progress.innerHTML = `⏫ Загрузка: 0% (${file.name})`;
-            
-            function sendNextChunk() {
-                const chunk = file.slice(offset, offset + chunkSize);
-                const reader = new FileReader();
-                
-                reader.onload = function(e) {
-                    // Отправляем чанк как бинарные данные
-                    ws.send(e.target.result);
-                    
-                    offset += chunkSize;
-                    const percent = Math.min(100, Math.round((offset / file.size) * 100));
-                    progress.innerHTML = `⏫ Загрузка: ${percent}% (${file.name})`;
-                    
-                    if (offset < file.size) {
-                        setTimeout(sendNextChunk, 5);
-                    }
-                };
-                
-                reader.onerror = function() {
-                    progress.innerHTML = '❌ Ошибка чтения файла';
-                    setTimeout(() => progress.style.display = 'none', 3000);
-                };
-                
-                reader.readAsArrayBuffer(chunk);
-            }
-            
-            sendNextChunk();
-            this.value = '';
+        document.getElementById('device-name').innerText = device;
+        document.getElementById('connect-screen').classList.add('hidden');
+        
+        ws = new WebSocket(WS_URL + encodeURIComponent(device));
+
+        ws.onopen = function() {
+            connected = true;
+            updateUI();
+            addSystemMessage('✅ Подключился к чату');
+            setupKeyboardHandler();
         };
 
-        function addMessage(msg) {
-            const messagesDiv = document.getElementById('messages');
-            const div = document.createElement('div');
-            
-            if (msg.sender === 'system') {
-                div.className = 'message system';
-                div.innerHTML = msg.text;
-            } else {
-                div.className = 'message ' + (msg.sender === device ? 'my' : 'other');
-                
-                const time = msg.time ? msg.time.substring(11, 16) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const sender = msg.sender === device ? 'Я' : msg.sender;
-                
-                let content = '<b>' + sender + ':</b> ';
-                
-                if (msg.fileId) {
-                    if (msg.fileType === 'image') {
-                        content += '<div><img src="/file/' + msg.fileId + '" class="media-preview" onclick="window.open(\'/file/' + msg.fileId + '\')"></div>';
-                    } else if (msg.fileType === 'video') {
-                        content += '<div><video src="/file/' + msg.fileId + '" controls style="max-width:200px; max-height:200px;"></video></div>';
-                    } else if (msg.fileType === 'audio') {
-                        content += '<div><audio src="/file/' + msg.fileId + '" controls></audio></div>';
-                    } else {
-                        content += '<div><a href="/download/' + msg.fileId + '" class="file-link">📎 ' + (msg.fileName || 'Файл') + '</a></div>';
+        ws.onmessage = function(event) {
+            if (typeof event.data === 'string') {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'message') {
+                        addMessage(data);
+                    } else if (data.type === 'users') {
+                        updateUsers(data.users);
+                    } else if (data.type === 'history') {
+                        document.getElementById('messages').innerHTML = '';
+                        if (data.messages && data.messages.length > 0) {
+                            data.messages.forEach(msg => addMessage(msg));
+                            addSystemMessage('📜 Загружена история (' + data.messages.length + ' сообщений)');
+                        }
+                    } else if (data.type === 'upload_complete') {
+                        const progress = document.getElementById('upload-progress');
+                        progress.innerHTML = `✅ Загружено: ${data.fileName}`;
+                        setTimeout(() => progress.style.display = 'none', 2000);
+                        
+                        // Автоматически отправляем сообщение о файле
+                        const message = {
+                            type: 'message',
+                            text: '📎 ' + data.fileName,
+                            fileId: data.fileId,
+                            fileName: data.fileName,
+                            fileType: data.fileType
+                        };
+                        ws.send(JSON.stringify(message));
                     }
+                } catch (e) {
+                    console.error('Ошибка парсинга JSON:', e);
                 }
+            } else {
+                console.log('📦 Получен бинарный чанк, размер:', event.data.byteLength || event.data.size);
+            }
+        };
+
+        ws.onclose = function() {
+            connected = false;
+            updateUI();
+            addSystemMessage('❌ Отключился от чата');
+            document.getElementById('connect-screen').classList.remove('hidden');
+        };
+
+        ws.onerror = function(error) {
+            console.error('WebSocket ошибка:', error);
+            addSystemMessage('❌ Ошибка подключения');
+        };
+    }
+
+    function send() {
+        if (!connected) return;
+        const text = document.getElementById('text').value.trim();
+        if (!text) return;
+        ws.send(JSON.stringify({type:'message', text:text}));
+        document.getElementById('text').value = '';
+        
+        setTimeout(() => {
+            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+        }, 50);
+    }
+
+    function selectFile() {
+        document.getElementById('file-input').click();
+    }
+
+    document.getElementById('file-input').onchange = function() {
+        if (!this.files || this.files.length === 0) return;
+        
+        const file = this.files[0];
+        
+        // Проверка размера
+        if (file.size > 100 * 1024 * 1024) {
+            alert('Файл слишком большой! Максимум 100 МБ');
+            return;
+        }
+        
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            alert('Нет соединения с сервером');
+            return;
+        }
+        
+        // Определяем тип файла
+        let fileType = 'file';
+        if (file.type.startsWith('image/')) fileType = 'image';
+        else if (file.type.startsWith('video/')) fileType = 'video';
+        else if (file.type.startsWith('audio/')) fileType = 'audio';
+        
+        // Отправляем метаданные
+        const metadata = {
+            type: 'file_metadata',
+            fileName: file.name,
+            fileType: fileType,
+            fileSize: file.size
+        };
+        ws.send(JSON.stringify(metadata));
+        
+        // Отправляем файл чанками
+        const chunkSize = 64 * 1024; // 64 КБ
+        let offset = 0;
+        
+        const progress = document.getElementById('upload-progress');
+        progress.style.display = 'block';
+        progress.innerHTML = `⏫ Загрузка: 0% (${file.name})`;
+        
+        function sendNextChunk() {
+            const chunk = file.slice(offset, offset + chunkSize);
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                ws.send(e.target.result);
                 
-                content += (msg.text && !msg.text.startsWith('📎')) ? msg.text : '';
-                content += '<small>' + time + '</small>';
-                div.innerHTML = content;
+                offset += chunkSize;
+                const percent = Math.min(100, Math.round((offset / file.size) * 100));
+                progress.innerHTML = `⏫ Загрузка: ${percent}% (${file.name})`;
+                
+                if (offset < file.size) {
+                    setTimeout(sendNextChunk, 5);
+                }
+            };
+            
+            reader.onerror = function() {
+                progress.innerHTML = '❌ Ошибка чтения файла';
+                setTimeout(() => progress.style.display = 'none', 3000);
+            };
+            
+            reader.readAsArrayBuffer(chunk);
+        }
+        
+        sendNextChunk();
+        this.value = '';
+    };
+
+    function addMessage(msg) {
+        const messagesDiv = document.getElementById('messages');
+        const div = document.createElement('div');
+        
+        if (msg.sender === 'system') {
+            div.className = 'message system';
+            div.innerHTML = msg.text;
+        } else {
+            div.className = 'message ' + (msg.sender === device ? 'my' : 'other');
+            
+            const time = msg.time ? msg.time.substring(11, 16) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const sender = msg.sender === device ? 'Я' : msg.sender;
+            
+            let content = '<b>' + sender + ':</b> ';
+            
+            if (msg.fileId) {
+                if (msg.fileType === 'image') {
+                    content += '<div><img src="/file/' + msg.fileId + '" class="media-preview" onclick="window.open(\'/file/' + msg.fileId + '\')"></div>';
+                } else if (msg.fileType === 'video') {
+                    content += '<div><video src="/file/' + msg.fileId + '" controls style="max-width:200px; max-height:200px;"></video></div>';
+                } else if (msg.fileType === 'audio') {
+                    content += '<div><audio src="/file/' + msg.fileId + '" controls></audio></div>';
+                } else {
+                    content += '<div><a href="/download/' + msg.fileId + '" class="file-link">📎 ' + (msg.fileName || 'Файл') + '</a></div>';
+                }
             }
             
-            messagesDiv.appendChild(div);
-            div.scrollIntoView({behavior: 'smooth', block: 'end'});
+            content += (msg.text && !msg.text.startsWith('📎')) ? msg.text : '';
+            content += '<small>' + time + '</small>';
+            div.innerHTML = content;
         }
+        
+        messagesDiv.appendChild(div);
+        div.scrollIntoView({behavior: 'smooth', block: 'end'});
+    }
 
-        function addSystemMessage(text) {
-            const div = document.createElement('div');
-            div.className = 'message system';
-            div.innerHTML = text;
-            document.getElementById('messages').appendChild(div);
-            div.scrollIntoView({behavior: 'smooth', block: 'end'});
+    function addSystemMessage(text) {
+        const div = document.createElement('div');
+        div.className = 'message system';
+        div.innerHTML = text;
+        document.getElementById('messages').appendChild(div);
+        div.scrollIntoView({behavior: 'smooth', block: 'end'});
+    }
+
+    function updateUsers(users) {
+        const usersDiv = document.getElementById('users');
+        usersDiv.innerHTML = '';
+        document.getElementById('online-count').innerText = users.length;
+        users.forEach(u => {
+            const span = document.createElement('span');
+            span.className = 'user online';
+            span.innerHTML = '🟢 ' + u.device;
+            usersDiv.appendChild(span);
+        });
+    }
+
+    function updateUI() {
+        const status = document.getElementById('status');
+        const text = document.getElementById('text');
+        const sendBtn = document.getElementById('send-btn');
+
+        if (connected) {
+            status.className = 'connected';
+            status.innerHTML = '🟢';
+            text.disabled = false;
+            sendBtn.disabled = false;
+            text.focus();
+        } else {
+            status.className = 'disconnected';
+            status.innerHTML = '🔴';
+            text.disabled = true;
+            sendBtn.disabled = true;
         }
+    }
 
-        function updateUsers(users) {
-            const usersDiv = document.getElementById('users');
-            usersDiv.innerHTML = '';
-            document.getElementById('online-count').innerText = users.length;
-            users.forEach(u => {
-                const span = document.createElement('span');
-                span.className = 'user online';
-                span.innerHTML = '🟢 ' + u.device;
-                usersDiv.appendChild(span);
-            });
-        }
+    // Обработка Enter
+    document.getElementById('text').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && connected) send();
+    });
 
-        function updateUI() {
-            const status = document.getElementById('status');
-            const text = document.getElementById('text');
-            const sendBtn = document.getElementById('send-btn');
+    document.getElementById('device-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') connect();
+    });
 
-            if (connected) {
-                status.className = 'connected';
-                status.innerHTML = '🟢';
-                text.disabled = false;
-                sendBtn.disabled = false;
-                setTimeout(() => text.focus(), 300);
-            } else {
-                status.className = 'disconnected';
-                status.innerHTML = '🔴';
-                text.disabled = true;
-                sendBtn.disabled = true;
-            }
-        }
-
-        document.getElementById('text').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && connected) send();
-        });
-
-        document.getElementById('device-input').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') connect();
-        });
-
-        document.querySelectorAll('input').forEach(input => {
-            input.addEventListener('focus', () => {
-                document.body.style.zoom = '1';
-            });
-        });
-
-        window.addEventListener('load', function() {
-            if (window.visualViewport) {
-                window.visualViewport.addEventListener('resize', function() {
-                    document.body.style.zoom = '1';
-                });
-            }
-        });
-    </script>
+    // Убираем typing индикатор
+    document.getElementById('text').addEventListener('input', function() {
+        // Не отправляем typing события
+    });
+</script>
 </body>
 </html>
