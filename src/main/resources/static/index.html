@@ -165,8 +165,6 @@
             z-index: 30;
             transform: translateZ(0);
             -webkit-transform: translateZ(0);
-            /* Фиксируем положение */
-            transition: none !important;
         }
         
         #text {
@@ -380,8 +378,7 @@
         let device = '';
         let connected = false;
         const WS_URL = 'ws://188.92.28.209:8080/ws/chat/';
-    
-        // Исправленная функция для работы с клавиатурой
+
         function setupKeyboardHandler() {
             const chat = document.getElementById('chat');
             const messages = document.getElementById('messages');
@@ -407,79 +404,78 @@
                 }, 300);
             });
             
-            input.addEventListener('touchstart', function(e) {
-                e.stopPropagation();
-            });
-            
-            messages.addEventListener('touchstart', function() {
-                messages.style.overflowY = 'auto';
-            });
-            
             fixLayout();
         }
-    
+
         function connect() {
             device = document.getElementById('device-input').value.trim();
             if (!device) device = 'User' + Math.floor(Math.random() * 1000);
-    
+
             document.getElementById('device-name').innerText = device;
             document.getElementById('connect-screen').classList.add('hidden');
             
             ws = new WebSocket(WS_URL + encodeURIComponent(device));
-    
+
             ws.onopen = function() {
                 connected = true;
                 updateUI();
                 addSystemMessage('✅ Подключился к чату');
                 setupKeyboardHandler();
             };
-    
+
             ws.onmessage = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === 'message') {
-                        addMessage(data);
-                    } else if (data.type === 'users') {
-                        updateUsers(data.users);
-                    } else if (data.type === 'history') {
-                        document.getElementById('messages').innerHTML = '';
-                        if (data.messages && data.messages.length > 0) {
-                            data.messages.forEach(msg => addMessage(msg));
-                            addSystemMessage('📜 Загружена история (' + data.messages.length + ' сообщений)');
-                        }
-                    } else if (data.type === 'upload_complete') {
-                        const progress = document.getElementById('upload-progress');
-                        progress.innerHTML = `✅ Загружено: ${data.fileName}`;
-                        setTimeout(() => progress.style.display = 'none', 2000);
+                if (typeof event.data === 'string') {
+                    // Текстовое сообщение (JSON)
+                    try {
+                        const data = JSON.parse(event.data);
                         
-                        // Отправляем сообщение в чат о файле
-                        const message = {
-                            type: 'message',
-                            text: '📎 ' + data.fileName,
-                            fileId: data.fileId,
-                            fileName: data.fileName,
-                            fileType: data.fileType
-                        };
-                        ws.send(JSON.stringify(message));
+                        if (data.type === 'message') {
+                            addMessage(data);
+                        } else if (data.type === 'users') {
+                            updateUsers(data.users);
+                        } else if (data.type === 'history') {
+                            document.getElementById('messages').innerHTML = '';
+                            if (data.messages && data.messages.length > 0) {
+                                data.messages.forEach(msg => addMessage(msg));
+                                addSystemMessage('📜 Загружена история (' + data.messages.length + ' сообщений)');
+                            }
+                        } else if (data.type === 'upload_complete') {
+                            const progress = document.getElementById('upload-progress');
+                            progress.innerHTML = `✅ Загружено: ${data.fileName}`;
+                            setTimeout(() => progress.style.display = 'none', 2000);
+                            
+                            // Автоматически отправляем сообщение о файле
+                            const message = {
+                                type: 'message',
+                                text: '📎 ' + data.fileName,
+                                fileId: data.fileId,
+                                fileName: data.fileName,
+                                fileType: data.fileType
+                            };
+                            ws.send(JSON.stringify(message));
+                        }
+                    } catch (e) {
+                        console.error('Ошибка парсинга JSON:', e);
                     }
-                } catch (e) {
-                    console.error('Ошибка парсинга:', e);
+                } else {
+                    // Бинарные данные (получение файла)
+                    console.log('📦 Получен бинарный чанк, размер:', event.data.byteLength || event.data.size);
                 }
             };
-    
+
             ws.onclose = function() {
                 connected = false;
                 updateUI();
                 addSystemMessage('❌ Отключился от чата');
                 document.getElementById('connect-screen').classList.remove('hidden');
             };
-    
+
             ws.onerror = function(error) {
                 console.error('WebSocket ошибка:', error);
                 addSystemMessage('❌ Ошибка подключения');
             };
         }
-    
+
         function send() {
             if (!connected) return;
             const text = document.getElementById('text').value.trim();
@@ -491,15 +487,27 @@
                 document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
             }, 50);
         }
-    
+
         function selectFile() {
             document.getElementById('file-input').click();
         }
-    
+
         document.getElementById('file-input').onchange = function() {
             if (!this.files || this.files.length === 0) return;
             
             const file = this.files[0];
+            
+            // Проверка размера (макс 100 МБ)
+            if (file.size > 100 * 1024 * 1024) {
+                alert('Файл слишком большой! Максимум 100 МБ');
+                return;
+            }
+            
+            // Проверяем соединение
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Нет соединения с сервером');
+                return;
+            }
             
             // Отправляем метаданные файла
             const metadata = {
@@ -507,7 +515,8 @@
                 fileName: file.name,
                 fileType: file.type.startsWith('image/') ? 'image' : 
                          file.type.startsWith('video/') ? 'video' : 
-                         file.type.startsWith('audio/') ? 'audio' : 'file'
+                         file.type.startsWith('audio/') ? 'audio' : 'file',
+                fileSize: file.size
             };
             ws.send(JSON.stringify(metadata));
             
@@ -532,8 +541,13 @@
                     progress.innerHTML = `⏫ Загрузка: ${percent}% (${file.name})`;
                     
                     if (offset < file.size) {
-                        setTimeout(sendNextChunk, 10);
+                        setTimeout(sendNextChunk, 5);
                     }
+                };
+                
+                reader.onerror = function() {
+                    progress.innerHTML = '❌ Ошибка чтения файла';
+                    setTimeout(() => progress.style.display = 'none', 3000);
                 };
                 
                 reader.readAsArrayBuffer(chunk);
@@ -542,7 +556,7 @@
             sendNextChunk();
             this.value = '';
         };
-    
+
         function addMessage(msg) {
             const messagesDiv = document.getElementById('messages');
             const div = document.createElement('div');
@@ -578,7 +592,7 @@
             messagesDiv.appendChild(div);
             div.scrollIntoView({behavior: 'smooth', block: 'end'});
         }
-    
+
         function addSystemMessage(text) {
             const div = document.createElement('div');
             div.className = 'message system';
@@ -586,7 +600,7 @@
             document.getElementById('messages').appendChild(div);
             div.scrollIntoView({behavior: 'smooth', block: 'end'});
         }
-    
+
         function updateUsers(users) {
             const usersDiv = document.getElementById('users');
             usersDiv.innerHTML = '';
@@ -598,12 +612,12 @@
                 usersDiv.appendChild(span);
             });
         }
-    
+
         function updateUI() {
             const status = document.getElementById('status');
             const text = document.getElementById('text');
             const sendBtn = document.getElementById('send-btn');
-    
+
             if (connected) {
                 status.className = 'connected';
                 status.innerHTML = '🟢';
@@ -617,21 +631,21 @@
                 sendBtn.disabled = true;
             }
         }
-    
+
         document.getElementById('text').addEventListener('keypress', function(e) {
             if (e.key === 'Enter' && connected) send();
         });
-    
+
         document.getElementById('device-input').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') connect();
         });
-    
+
         document.querySelectorAll('input').forEach(input => {
             input.addEventListener('focus', () => {
                 document.body.style.zoom = '1';
             });
         });
-    
+
         window.addEventListener('load', function() {
             if (window.visualViewport) {
                 window.visualViewport.addEventListener('resize', function() {
