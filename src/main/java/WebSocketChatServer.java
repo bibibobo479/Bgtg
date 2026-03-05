@@ -269,7 +269,87 @@ public class WebSocketChatServer {
     
     @ServerEndpoint("/chat/{device}")
     public static class ChatEndpoint {
-        private static final Map<Session, FileAssembly> fileAssemblies = new ConcurrentHashMap<>();
+    private static final Map<Session, FileAssembly> fileAssemblies = new ConcurrentHashMap<>();
+    
+    // Обработка бинарных сообщений (чанки файлов)
+    @OnMessage
+    public void onMessage(ByteBuffer message, boolean last, Session session, @PathParam("device") String device) {
+        System.out.println("📩 Получен бинарный чанк от " + device + ", размер: " + message.remaining() + " байт, последний: " + last);
+        
+        FileAssembly assembly = fileAssemblies.get(session);
+        if (assembly == null) {
+            System.out.println("❌ Нет сборщика для сессии");
+            return;
+        }
+        
+        try {
+            byte[] chunk = new byte[message.remaining()];
+            message.get(chunk);
+            assembly.append(chunk);
+            
+            if (last) {
+                String fileId = assembly.finish();
+                fileAssemblies.remove(session);
+                
+                // Отправляем подтверждение
+                Map<String, Object> response = new HashMap<>();
+                response.put("type", "upload_complete");
+                response.put("fileId", fileId);
+                response.put("fileName", assembly.fileName);
+                response.put("fileType", assembly.fileType);
+                response.put("size", assembly.totalBytes);
+                
+                String json = gson.toJson(response);
+                session.getAsyncRemote().sendText(json);
+                
+                System.out.println("✅ Файл загружен: " + assembly.fileName + ", ID: " + fileId);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    // Обработка текстовых сообщений (включая метаданные)
+    @OnMessage
+    public void onMessage(String message, Session session, @PathParam("device") String device) {
+        try {
+            Map<String, Object> msgData = gson.fromJson(message, Map.class);
+            String type = (String) msgData.get("type");
+            
+            if ("file_metadata".equals(type)) {
+                String fileName = (String) msgData.get("fileName");
+                String fileType = (String) msgData.get("fileType");
+                
+                FileAssembly assembly = fileAssemblies.get(session);
+                if (assembly != null) {
+                    assembly.start(fileName, fileType, device);
+                    System.out.println("📋 Метаданные файла: " + fileName + " (" + fileType + ")");
+                }
+                return;
+            }
+            
+            // Обычное сообщение...
+            String text = (String) msgData.get("text");
+            String fileId = (String) msgData.get("fileId");
+            String fileName = (String) msgData.get("fileName");
+            String fileType = (String) msgData.get("fileType");
+            
+            Map<String, Object> outgoingMsg = new HashMap<>();
+            outgoingMsg.put("type", "message");
+            outgoingMsg.put("sender", device);
+            outgoingMsg.put("text", text);
+            outgoingMsg.put("fileId", fileId);
+            outgoingMsg.put("fileName", fileName);
+            outgoingMsg.put("fileType", fileType);
+            outgoingMsg.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+            
+            saveMessageToDB(device, text, fileId, fileName, fileType);
+            broadcastToAll(gson.toJson(outgoingMsg));
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
         
         @OnOpen
         public void onOpen(Session session, @PathParam("device") String device) {
@@ -308,106 +388,7 @@ public class WebSocketChatServer {
             broadcastToAll(json);
         }
         
-        // Обработка текстовых сообщений (включая метаданные файлов)
-        @OnMessage
-        public void onMessage(String message, Session session, @PathParam("device") String device) {
-            System.out.println("📩 Текстовое сообщение от " + device + ": " + message);
-            
-            try {
-                Map<String, Object> msgData = gson.fromJson(message, Map.class);
-                String type = (String) msgData.get("type");
-                
-                // Если это метаданные для загрузки файла
-                if ("file_metadata".equals(type)) {
-                    String fileName = (String) msgData.get("fileName");
-                    String fileType = (String) msgData.get("fileType");
-                    
-                    // Сохраняем в сборщике файлов для этой сессии
-                    FileAssembly assembly = fileAssemblies.get(session);
-                    if (assembly != null) {
-                        assembly.start(fileName, fileType, device);
-                        System.out.println("📋 Метаданные файла: " + fileName + " (" + fileType + ")");
-                    }
-                    return;
-                }
-                
-                // Обычное текстовое сообщение
-                String text = (String) msgData.get("text");
-                String fileId = (String) msgData.get("fileId");
-                String fileName = (String) msgData.get("fileName");
-                String fileType = (String) msgData.get("fileType");
-                
-                Map<String, Object> outgoingMsg = new HashMap<>();
-                outgoingMsg.put("type", "message");
-                outgoingMsg.put("sender", device);
-                outgoingMsg.put("text", text);
-                outgoingMsg.put("fileId", fileId);
-                outgoingMsg.put("fileName", fileName);
-                outgoingMsg.put("fileType", fileType);
-                outgoingMsg.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
-                
-                String json = gson.toJson(outgoingMsg);
-                
-                // Сохраняем в БД
-                saveMessageToDB(device, text, fileId, fileName, fileType);
-                
-                // Рассылаем всем
-                broadcastToAll(json);
-                
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        
-        // Обработка бинарных сообщений (чанки файлов)
-        @OnMessage
-        public void onMessage(ByteBuffer message, boolean last, Session session, @PathParam("device") String device) {
-            System.out.println("📩 Получен бинарный чанк от " + device + ", размер: " + message.remaining() + " байт, последний: " + last);
-            
-            FileAssembly assembly = fileAssemblies.get(session);
-            if (assembly == null) {
-                System.out.println("❌ Нет сборщика для сессии");
-                return;
-            }
-            
-            try {
-                // Получаем байты из буфера
-                byte[] chunk = new byte[message.remaining()];
-                message.get(chunk);
-                
-                // Добавляем чанк
-                assembly.append(chunk);
-                
-                // Если это последний чанк, финализируем файл
-                if (last) {
-                    String fileId = assembly.finish();
-                    fileAssemblies.remove(session);
-                    
-                    // Отправляем подтверждение клиенту
-                    Map<String, Object> response = new HashMap<>();
-                    response.put("type", "upload_complete");
-                    response.put("fileId", fileId);
-                    response.put("fileName", assembly.fileName);
-                    response.put("fileType", assembly.fileType);
-                    response.put("size", assembly.totalBytes);
-                    
-                    String json = gson.toJson(response);
-                    session.getAsyncRemote().sendText(json);
-                    
-                    System.out.println("✅ Файл загружен полностью: " + assembly.fileName);
-                }
-                
-            } catch (Exception e) {
-                System.err.println("❌ Ошибка при загрузке чанка: " + e.getMessage());
-                e.printStackTrace();
-                
-                // Очищаем при ошибке
-                FileAssembly failedAssembly = fileAssemblies.remove(session);
-                if (failedAssembly != null) {
-                    failedAssembly.cleanup();
-                }
-            }
-        }
+
         
         @OnClose
         public void onClose(Session session, @PathParam("device") String device) {
