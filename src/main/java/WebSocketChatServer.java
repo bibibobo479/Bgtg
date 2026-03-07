@@ -304,39 +304,56 @@ public static class ChatEndpoint {
         }
     }
     
-    @OnMessage
+   @OnMessage
     public void onMessage(String message, Session session, @PathParam("device") String device) {
         try {
             Map<String, Object> msgData = gson.fromJson(message, Map.class);
             String type = (String) msgData.get("type");
-            
+
+            // Обработка typing индикатора
+            if ("typing".equals(type)) {
+                boolean isTyping = (boolean) msgData.get("typing");
+                System.out.println("⌨️ " + device + " печатает: " + isTyping);
+
+                // Отправляем статус печати всем КРОМЕ отправителя
+                Map<String, Object> typingMsg = new HashMap<>();
+                typingMsg.put("type", "typing");
+                typingMsg.put("sender", device);
+                typingMsg.put("typing", isTyping);
+
+                String json = gson.toJson(typingMsg);
+
+                for (Map.Entry<String, Session> entry : clients.entrySet()) {
+                    if (!entry.getKey().equals(device) && entry.getValue().isOpen()) {
+                        entry.getValue().getAsyncRemote().sendText(json);
+                    }
+                }
+                return;
+            }
+
+            // Обработка метаданных файла
             if ("file_metadata".equals(type)) {
                 String fileName = (String) msgData.get("fileName");
                 String fileType = (String) msgData.get("fileType");
                 long fileSize = msgData.containsKey("fileSize") ? ((Number) msgData.get("fileSize")).longValue() : 0;
-                
-                // СОЗДАЕМ НОВЫЙ СБОРЩИК ДЛЯ КАЖДОГО ФАЙЛА
+
                 FileAssembly assembly = new FileAssembly();
                 assembly.start(fileName, fileType, device);
                 assembly.expectedSize = fileSize;
-                
-                // Сохраняем в карту, заменяя старый
+
                 FileAssembly old = fileAssemblies.put(session, assembly);
-                if (old != null) {
-                    old.cleanup(); // Очищаем старый, если был
-                    System.out.println("🔄 Заменен старый сборщик для сессии " + device);
-                }
-                
+                if (old != null) old.cleanup();
+
                 System.out.println("📋 Метаданные файла: " + fileName + " (" + fileType + "), размер: " + fileSize + " байт");
                 return;
             }
-            
+
             // Обычное текстовое сообщение
             String text = (String) msgData.get("text");
             String fileId = (String) msgData.get("fileId");
             String fileName = (String) msgData.get("fileName");
             String fileType = (String) msgData.get("fileType");
-            
+
             Map<String, Object> outgoingMsg = new HashMap<>();
             outgoingMsg.put("type", "message");
             outgoingMsg.put("sender", device);
@@ -345,93 +362,130 @@ public static class ChatEndpoint {
             outgoingMsg.put("fileName", fileName);
             outgoingMsg.put("fileType", fileType);
             outgoingMsg.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
-            
+
             saveMessageToDB(device, text, fileId, fileName, fileType);
-            
+
             String json = gson.toJson(outgoingMsg);
             System.out.println("📤 Сообщение от " + device + " для " + clients.size() + " клиентов: " + text);
-            
-            int sentCount = 0;
+
+            // Отправляем всем
             for (Map.Entry<String, Session> entry : clients.entrySet()) {
-                Session s = entry.getValue();
-                if (s != null && s.isOpen()) {
-                    s.getAsyncRemote().sendText(json);
-                    sentCount++;
+                if (entry.getValue().isOpen()) {
+                    entry.getValue().getAsyncRemote().sendText(json);
                 }
             }
-            System.out.println("📊 Итого отправлено: " + sentCount + " клиентам");
-            
+
         } catch (Exception e) {
             System.err.println("❌ Ошибка обработки текстового сообщения: " + e.getMessage());
             e.printStackTrace();
         }
     }
+
+    private void broadcastUserList() {
+        List<Map<String, Object>> userList = new ArrayList<>();
+
+        for (Map.Entry<String, Session> entry : clients.entrySet()) {
+            String device = entry.getKey();
+            Session session = entry.getValue();
+
+            Map<String, Object> user = new HashMap<>();
+            user.put("device", device);
+            user.put("nickname", device); // Можно добавить никнеймы из БД
+            user.put("online", session.isOpen());
+
+            userList.add(user);
+        }
+
+        Map<String, Object> msg = new HashMap<>();
+        msg.put("type", "users");
+        msg.put("users", userList);
+
+        String json = gson.toJson(msg);
+
+        // Отправляем всем
+        for (Session s : clients.values()) {
+            if (s.isOpen()) {
+                s.getAsyncRemote().sendText(json);
+            }
+        }
+    }
+
     
     @OnOpen
     public void onOpen(Session session, @PathParam("device") String device) {
         clients.put(device, session);
         users.put(device, new User(device, device));
-        // НЕ создаем сборщик здесь - будем создавать при получении метаданных
+
         System.out.println("🔌 Подключен: " + device);
         System.out.println("📊 Всего клиентов: " + clients.size());
-        System.out.println("📋 Список клиентов: " + clients.keySet());
-        
+
+        // Сохраняем в БД
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:chat.db");
-                 PreparedStatement pstmt = conn.prepareStatement(
-                    "INSERT OR REPLACE INTO users (device_name, nickname, last_seen) VALUES (?, ?, ?)")) {
-                pstmt.setString(1, device);
-                pstmt.setString(2, device);
-                pstmt.setString(3, LocalDateTime.now().toString());
-                pstmt.executeUpdate();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-            
-            List<Map<String, Object>> history = getMessageHistory(50);
-            Map<String, Object> historyMsg = new HashMap<>();
-            historyMsg.put("type", "history");
-            historyMsg.put("messages", history);
-            session.getAsyncRemote().sendText(gson.toJson(historyMsg));
-            
-            Map<String, Object> welcomeMsg = new HashMap<>();
-            welcomeMsg.put("type", "message");
-            welcomeMsg.put("sender", "system");
-            welcomeMsg.put("text", "👋 " + device + " присоединился к чату!");
-            welcomeMsg.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
-            
-            String json = gson.toJson(welcomeMsg);
-            for (Map.Entry<String, Session> entry : clients.entrySet()) {
-                Session s = entry.getValue();
-                if (s != null && s.isOpen()) {
-                    s.getAsyncRemote().sendText(json);
-                    System.out.println("✅ Уведомление отправлено клиенту: " + entry.getKey());
-                }
+            PreparedStatement pstmt = conn.prepareStatement(
+                "INSERT OR REPLACE INTO users (device_name, nickname, last_seen) VALUES (?, ?, ?)")) {
+            pstmt.setString(1, device);
+            pstmt.setString(2, device);
+            pstmt.setString(3, LocalDateTime.now().toString());
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        // Отправляем историю новому пользователю
+        List<Map<String, Object>> history = getMessageHistory(50);
+        Map<String, Object> historyMsg = new HashMap<>();
+        historyMsg.put("type", "history");
+        historyMsg.put("messages", history);
+        session.getAsyncRemote().sendText(gson.toJson(historyMsg));
+
+        // Отправляем приветствие
+        Map<String, Object> welcomeMsg = new HashMap<>();
+        welcomeMsg.put("type", "message");
+        welcomeMsg.put("sender", "system");
+        welcomeMsg.put("text", "👋 " + device + " присоединился к чату!");
+        welcomeMsg.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+
+        String welcomeJson = gson.toJson(welcomeMsg);
+        for (Session s : clients.values()) {
+            if (s.isOpen()) {
+                s.getAsyncRemote().sendText(welcomeJson);
             }
         }
-        
-        @OnClose
-        public void onClose(Session session, @PathParam("device") String device) {
-            FileAssembly assembly = fileAssemblies.remove(session);
-            if (assembly != null) assembly.cleanup();
-            clients.remove(device);
-            users.remove(device);
-            System.out.println("🔌 Отключен: " + device);
-            System.out.println("📊 Осталось клиентов: " + clients.size());
-            
-            Map<String, Object> byeMsg = new HashMap<>();
-            byeMsg.put("type", "message");
-            byeMsg.put("sender", "system");
-            byeMsg.put("text", "👋 " + device + " покинул чат");
-            byeMsg.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
-            
-            String json = gson.toJson(byeMsg);
-            for (Map.Entry<String, Session> entry : clients.entrySet()) {
-                Session s = entry.getValue();
-                if (s != null && s.isOpen()) {
-                    s.getAsyncRemote().sendText(json);
-                }
+
+        // Отправляем обновленный список пользователей ВСЕМ
+        broadcastUserList();
+    }
+
+
+
+    @OnClose
+    public void onClose(Session session, @PathParam("device") String device) {
+        FileAssembly assembly = fileAssemblies.remove(session);
+        if (assembly != null) assembly.cleanup();
+
+        clients.remove(device);
+        users.remove(device);
+
+        System.out.println("🔌 Отключен: " + device);
+        System.out.println("📊 Осталось клиентов: " + clients.size());
+
+        // Отправляем сообщение об отключении
+        Map<String, Object> byeMsg = new HashMap<>();
+        byeMsg.put("type", "message");
+        byeMsg.put("sender", "system");
+        byeMsg.put("text", "👋 " + device + " покинул чат");
+        byeMsg.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+
+        String byeJson = gson.toJson(byeMsg);
+        for (Session s : clients.values()) {
+            if (s.isOpen()) {
+                s.getAsyncRemote().sendText(byeJson);
             }
         }
+
+        // Отправляем обновленный список пользователей
+        broadcastUserList();
+    }
         
         @OnError
         public void onError(Session session, Throwable error) {
