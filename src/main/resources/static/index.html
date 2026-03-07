@@ -2,650 +2,272 @@
 <html>
 <head>
     <meta charset='UTF-8'>
-    <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover'>
-    <title>Мобильный Чат</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Чат с файлами</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: #f0f2f5;
-            height: 100dvh;
-            height: -webkit-fill-available;
-            overflow: hidden;
-            position: fixed;
-            width: 100%;
-            top: 0;
-            left: 0;
-        }
-        
-        #chat {
-            width: 100%;
-            height: 100%;
-            max-width: 500px;
-            background: white;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            margin: 0 auto;
-            overflow: hidden;
-        }
-        
-        #header {
-            background: #075E54;
-            color: white;
-            padding: 12px 16px;
-            padding-top: calc(12px + env(safe-area-inset-top, 0px));
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            z-index: 20;
-            flex-shrink: 0;
-        }
-        
-        #header-left {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        #device-name {
-            font-weight: 600;
-            font-size: 16px;
-        }
-        
-        #status {
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 500;
-        }
-        
-        .connected {
-            background: #25D366;
-        }
-        
-        .disconnected {
-            background: #f44336;
-        }
-        
-        #users {
-            background: #f8f9fa;
-            padding: 8px 12px;
-            border-bottom: 1px solid #e0e0e0;
-            overflow-x: auto;
-            white-space: nowrap;
-            -webkit-overflow-scrolling: touch;
-            flex-shrink: 0;
-        }
-        
-        .user {
-            display: inline-block;
-            background: #e0e0e0;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 13px;
-            margin-right: 8px;
-        }
-        
-        .user.online {
-            background: #DCF8C6;
-        }
-        
-        #messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 15px;
-            padding-bottom: 5px;
-            background: #e5ddd5;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            -webkit-overflow-scrolling: touch;
-        }
-        
-        .message {
-            max-width: 80%;
-            padding: 8px 12px;
-            border-radius: 7px;
-            position: relative;
-            word-wrap: break-word;
-            font-size: 14px;
-            line-height: 1.4;
-        }
-        
-        .my {
-            background: #DCF8C6;
-            align-self: flex-end;
-        }
-        
-        .other {
-            background: white;
-            align-self: flex-start;
-        }
-        
-        .system {
-            background: rgba(0,0,0,0.5);
-            color: white;
-            align-self: center;
-            font-size: 12px;
-            padding: 4px 12px;
-            border-radius: 15px;
-            max-width: 90%;
-            text-align: center;
-        }
-        
-        .message small {
-            font-size: 10px;
-            opacity: 0.6;
-            display: block;
-            margin-top: 4px;
-        }
-        
-        .my small {
-            text-align: right;
-        }
-        
-        #input-area {
-            background: #f0f0f0;
-            padding: 8px 12px;
-            padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            border-top: 1px solid #ddd;
-            flex-shrink: 0;
-            position: relative;
-            z-index: 30;
-            transform: translateZ(0);
-            -webkit-transform: translateZ(0);
-        }
-        
-        #text {
-            flex: 1;
-            min-width: 200px;
-            padding: 10px 16px;
-            border: none;
-            border-radius: 25px;
-            font-size: 16px;
-            outline: none;
-            background: white;
-            -webkit-appearance: none;
-        }
-        
-        .action-btn {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            font-size: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
-            flex-shrink: 0;
-            -webkit-tap-highlight-color: transparent;
-        }
-        
-        .action-btn:active {
-            transform: scale(0.95);
-            opacity: 0.8;
-        }
-        
-        #file-btn {
-            background: #2196F3;
-        }
-        
-        #send-btn {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background: #075E54;
-            color: white;
-            border: none;
-            font-size: 22px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            flex-shrink: 0;
-        }
-        
-        #send-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        
-        #connect-screen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #075E54;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            z-index: 1000;
-            transition: transform 0.3s ease-out;
-            overflow: hidden;
-        }
-        
-        #connect-screen.hidden {
-            transform: translateY(-100%);
-        }
-        
-        #connect-screen h1 {
-            color: white;
-            font-size: 32px;
-            margin-bottom: 30px;
-            text-align: center;
-        }
-        
-        #connect-screen input {
-            width: 100%;
-            max-width: 300px;
-            padding: 15px;
-            border: none;
-            border-radius: 25px;
-            font-size: 16px;
-            margin-bottom: 15px;
-            text-align: center;
-            -webkit-appearance: none;
-        }
-        
-        #connect-screen button {
-            width: 100%;
-            max-width: 300px;
-            padding: 15px;
-            background: #25D366;
-            color: white;
-            border: none;
-            border-radius: 25px;
-            font-size: 18px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        
-        #online-count {
-            background: #128C7E;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-        }
-        
-        #upload-progress {
-            display: none;
-            padding: 8px;
-            background: #e3f2fd;
-            border-radius: 5px;
-            margin: 5px;
-            font-size: 12px;
-            text-align: center;
-            flex-shrink: 0;
-        }
-        
-        #file-input {
-            display: none;
-        }
-        
-        .media-preview {
-            max-width: 200px;
-            max-height: 200px;
-            border-radius: 10px;
-            margin-top: 5px;
-            cursor: pointer;
-        }
-        
-        .file-link {
-            color: inherit;
-            text-decoration: none;
-            display: inline-block;
-            padding: 5px 10px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 5px;
-        }
-        
-        #button-panel {
-            display: flex;
-            gap: 5px;
-            flex-shrink: 0;
-        }
-
-        @media (max-width: 500px) {
-            #text {
-                font-size: 16px;
-                padding: 12px 16px;
-            }
-            
-            .action-btn, #send-btn {
-                width: 48px;
-                height: 48px;
-            }
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial; background: #f0f2f5; height: 100vh; overflow: hidden; }
+        #chat { width: 100%; max-width: 500px; margin: 0 auto; background: white; height: 100vh; display: flex; flex-direction: column; }
+        #header { background: #075E54; color: white; padding: 15px; display: flex; justify-content: space-between; }
+        #messages { flex: 1; overflow-y: auto; padding: 15px; background: #e5ddd5; }
+        .message { margin: 5px 0; padding: 8px 12px; border-radius: 7px; max-width: 80%; word-wrap: break-word; }
+        .my { background: #DCF8C6; margin-left: auto; }
+        .other { background: white; }
+        .system { background: rgba(0,0,0,0.5); color: white; margin: 0 auto; text-align: center; }
+        #input-area { background: #f0f0f0; padding: 10px; display: flex; gap: 10px; align-items: center; }
+        #text { flex: 1; padding: 10px; border: none; border-radius: 20px; outline: none; }
+        #send-btn { width: 50px; height: 50px; border-radius: 50%; background: #075E54; color: white; border: none; cursor: pointer; }
+        #send-btn:disabled { background: #ccc; cursor: not-allowed; }
+        #file-btn { width: 40px; height: 40px; border-radius: 50%; background: #2196F3; color: white; border: none; cursor: pointer; }
+        #file-btn:disabled { background: #ccc; cursor: not-allowed; }
+        #file-input { display: none; }
+        #connect-screen { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #075E54; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; }
+        #connect-screen.hidden { display: none; }
+        #connect-screen input { padding: 10px; width: 80%; margin-bottom: 10px; border: none; border-radius: 5px; }
+        #connect-screen button { padding: 10px 20px; background: #25D366; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        #status { padding: 5px 10px; border-radius: 5px; }
+        #file-progress { display: none; padding: 8px; background: #e3f2fd; border-radius: 5px; margin: 5px; text-align: center; }
+        .media-preview { max-width: 200px; max-height: 200px; border-radius: 5px; margin-top: 5px; cursor: pointer; }
+        .file-link { color: #2196F3; text-decoration: none; }
+        .file-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
     <div id='chat'>
         <div id='connect-screen'>
-            <h1>💬 Чат</h1>
-            <input type='text' id='device-input' placeholder='Твое имя' value='User' autocomplete='off' inputmode='text'>
-            <button onclick='connect()'>Войти в чат</button>
+            <h1 style='color:white; margin-bottom:20px;'>Чат с файлами</h1>
+            <input type='text' id='device-input' placeholder='Ваше имя' value='User'>
+            <button onclick='connect()'>Войти</button>
         </div>
-
         <div id='header'>
-            <div id='header-left'>
-                <span id='device-name'></span>
-                <span id='online-count'>0</span>
-            </div>
-            <div>
-                <span id='status' class='disconnected'>🔴</span>
-            </div>
+            <span id='device-name'></span>
+            <span id='status'>🔴 Отключено</span>
         </div>
-        
-        <div id='users'></div>
-        
-        <div id='messages'>
-            <div class='message system'>👋 Добро пожаловать!</div>
-        </div>
-        
-        <div id='upload-progress'></div>
-        
+        <div id='messages'></div>
+        <div id='file-progress'></div>
         <div id='input-area'>
-            <input type='text' id='text' placeholder='Написать сообщение...' autocomplete='off' inputmode='text'>
-            <input type='file' id='file-input' accept='image/*,video/*,audio/*,*/*'>
-            <div id='button-panel'>
-                <button id='file-btn' class='action-btn' onclick='selectFile()'>📎</button>
-                <button id='send-btn' onclick='send()' disabled>➤</button>
-            </div>
+            <input type='text' id='text' placeholder='Сообщение...' disabled>
+            <input type='file' id='file-input'>
+            <button id='file-btn' onclick='selectFile()' disabled>📎</button>
+            <button id='send-btn' onclick='send()' disabled>➤</button>
         </div>
     </div>
 
-<script>
-    let ws = null;
-    let device = '';
-    let connected = false;
-    const WS_URL = 'ws://188.92.28.209:8080/ws/chat/';
-    let typingTimeout = null;
+    <script>
+        let ws = null;
+        let device = '';
+        let connected = false;
+        const WS_URL = 'ws://188.92.28.209:8080/ws/chat/';
 
-    function setupKeyboardHandler() {
-        const chat = document.getElementById('chat');
-        const messages = document.getElementById('messages');
-        const input = document.getElementById('text');
-        const originalHeight = window.innerHeight;
-        
-        function fixLayout() {
-            const currentHeight = window.innerHeight;
-            chat.style.height = currentHeight + 'px';
+        function connect() {
+            device = document.getElementById('device-input').value.trim();
+            if (!device) device = 'User' + Math.floor(Math.random() * 1000);
+
+            document.getElementById('device-name').innerText = device;
+            document.getElementById('connect-screen').classList.add('hidden');
             
-            if (currentHeight < originalHeight) {
-                setTimeout(() => {
-                    messages.scrollTop = messages.scrollHeight;
-                }, 100);
-            }
-        }
-        
-        window.addEventListener('resize', fixLayout);
-        
-        input.addEventListener('focus', function() {
-            setTimeout(() => {
-                messages.scrollTop = messages.scrollHeight;
-            }, 300);
-        });
-        
-        fixLayout();
-    }
+            ws = new WebSocket(WS_URL + encodeURIComponent(device));
 
-    function connect() {
-        device = document.getElementById('device-input').value.trim();
-        if (!device) device = 'User' + Math.floor(Math.random() * 1000);
+            ws.onopen = function() {
+                connected = true;
+                document.getElementById('status').innerHTML = '🟢 Подключено';
+                document.getElementById('text').disabled = false;
+                document.getElementById('send-btn').disabled = false;
+                document.getElementById('file-btn').disabled = false;
+                addSystemMessage('✅ Подключился к чату');
+                document.getElementById('text').focus();
+            };
 
-        document.getElementById('device-name').innerText = device;
-        document.getElementById('connect-screen').classList.add('hidden');
-        
-        ws = new WebSocket(WS_URL + encodeURIComponent(device));
-
-        ws.onopen = function() {
-            connected = true;
-            updateUI();
-            addSystemMessage('✅ Подключился к чату');
-            setupKeyboardHandler();
-        };
-
-        ws.onmessage = function(event) {
-            if (typeof event.data === 'string') {
-                try {
-                    const data = JSON.parse(event.data);
-                    
-                    if (data.type === 'message') {
-                        addMessage(data);
-                    } else if (data.type === 'users') {
-                        updateUsers(data.users);
-                    } else if (data.type === 'history') {
-                        document.getElementById('messages').innerHTML = '';
-                        if (data.messages && data.messages.length > 0) {
-                            data.messages.forEach(msg => addMessage(msg));
-                            addSystemMessage('📜 Загружена история (' + data.messages.length + ' сообщений)');
-                        }
-                    } else if (data.type === 'upload_complete') {
-                        const progress = document.getElementById('upload-progress');
-                        progress.innerHTML = `✅ Загружено: ${data.fileName}`;
-                        setTimeout(() => progress.style.display = 'none', 2000);
+            ws.onmessage = function(event) {
+                if (typeof event.data === 'string') {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('Получено:', data.type);
                         
-                        // Автоматически отправляем сообщение о файле
-                        const message = {
-                            type: 'message',
-                            text: '📎 ' + data.fileName,
-                            fileId: data.fileId,
-                            fileName: data.fileName,
-                            fileType: data.fileType
-                        };
-                        ws.send(JSON.stringify(message));
+                        if (data.type === 'message') {
+                            addMessage(data);
+                        } 
+                        else if (data.type === 'history' && data.messages) {
+                            document.getElementById('messages').innerHTML = '';
+                            data.messages.forEach(m => addMessage(m));
+                            addSystemMessage('📜 История загружена (' + data.messages.length + ' сообщений)');
+                        }
+                        else if (data.type === 'upload_complete') {
+                            // Файл подтвержден сервером
+                            const progress = document.getElementById('file-progress');
+                            progress.innerHTML = `✅ Файл загружен: ${data.fileName}`;
+                            setTimeout(() => progress.style.display = 'none', 3000);
+                            
+                            // Отправляем сообщение о файле в чат
+                            const fileMsg = {
+                                type: 'message',
+                                text: '📎 ' + data.fileName,
+                                fileId: data.fileId,
+                                fileName: data.fileName,
+                                fileType: data.fileType
+                            };
+                            ws.send(JSON.stringify(fileMsg));
+                            
+                            addSystemMessage(`✅ Файл "${data.fileName}" загружен`);
+                        }
+                    } catch (e) {
+                        console.error('Ошибка парсинга:', e);
+                        addSystemMessage('❌ Ошибка данных от сервера');
                     }
-                } catch (e) {
-                    console.error('Ошибка парсинга JSON:', e);
-                }
-            } else {
-                console.log('📦 Получен бинарный чанк, размер:', event.data.byteLength || event.data.size);
-            }
-        };
-
-        ws.onclose = function() {
-            connected = false;
-            updateUI();
-            addSystemMessage('❌ Отключился от чата');
-            document.getElementById('connect-screen').classList.remove('hidden');
-        };
-
-        ws.onerror = function(error) {
-            console.error('WebSocket ошибка:', error);
-            addSystemMessage('❌ Ошибка подключения');
-        };
-    }
-
-    function send() {
-        if (!connected) return;
-        const text = document.getElementById('text').value.trim();
-        if (!text) return;
-        ws.send(JSON.stringify({type:'message', text:text}));
-        document.getElementById('text').value = '';
-        
-        setTimeout(() => {
-            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-        }, 50);
-    }
-
-    function selectFile() {
-        document.getElementById('file-input').click();
-    }
-
-    document.getElementById('file-input').onchange = function() {
-        if (!this.files || this.files.length === 0) return;
-        
-        const file = this.files[0];
-        
-        // Проверка размера
-        if (file.size > 100 * 1024 * 1024) {
-            alert('Файл слишком большой! Максимум 100 МБ');
-            return;
-        }
-        
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-            alert('Нет соединения с сервером');
-            return;
-        }
-        
-        // Определяем тип файла
-        let fileType = 'file';
-        if (file.type.startsWith('image/')) fileType = 'image';
-        else if (file.type.startsWith('video/')) fileType = 'video';
-        else if (file.type.startsWith('audio/')) fileType = 'audio';
-        
-        // Отправляем метаданные
-        const metadata = {
-            type: 'file_metadata',
-            fileName: file.name,
-            fileType: fileType,
-            fileSize: file.size
-        };
-        ws.send(JSON.stringify(metadata));
-        
-        // Отправляем файл чанками
-        const chunkSize = 64 * 1024; // 64 КБ
-        let offset = 0;
-        
-        const progress = document.getElementById('upload-progress');
-        progress.style.display = 'block';
-        progress.innerHTML = `⏫ Загрузка: 0% (${file.name})`;
-        
-        function sendNextChunk() {
-            const chunk = file.slice(offset, offset + chunkSize);
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                ws.send(e.target.result);
-                
-                offset += chunkSize;
-                const percent = Math.min(100, Math.round((offset / file.size) * 100));
-                progress.innerHTML = `⏫ Загрузка: ${percent}% (${file.name})`;
-                
-                if (offset < file.size) {
-                    setTimeout(sendNextChunk, 5);
-                }
-            };
-            
-            reader.onerror = function() {
-                progress.innerHTML = '❌ Ошибка чтения файла';
-                setTimeout(() => progress.style.display = 'none', 3000);
-            };
-            
-            reader.readAsArrayBuffer(chunk);
-        }
-        
-        sendNextChunk();
-        this.value = '';
-    };
-
-    function addMessage(msg) {
-        const messagesDiv = document.getElementById('messages');
-        const div = document.createElement('div');
-        
-        if (msg.sender === 'system') {
-            div.className = 'message system';
-            div.innerHTML = msg.text;
-        } else {
-            div.className = 'message ' + (msg.sender === device ? 'my' : 'other');
-            
-            const time = msg.time ? msg.time.substring(11, 16) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const sender = msg.sender === device ? 'Я' : msg.sender;
-            
-            let content = '<b>' + sender + ':</b> ';
-            
-            if (msg.fileId) {
-                if (msg.fileType === 'image') {
-                    content += '<div><img src="/file/' + msg.fileId + '" class="media-preview" onclick="window.open(\'/file/' + msg.fileId + '\')"></div>';
-                } else if (msg.fileType === 'video') {
-                    content += '<div><video src="/file/' + msg.fileId + '" controls style="max-width:200px; max-height:200px;"></video></div>';
-                } else if (msg.fileType === 'audio') {
-                    content += '<div><audio src="/file/' + msg.fileId + '" controls></audio></div>';
                 } else {
-                    content += '<div><a href="/download/' + msg.fileId + '" class="file-link">📎 ' + (msg.fileName || 'Файл') + '</a></div>';
+                    console.log('Получен бинарный чанк, размер:', event.data.byteLength);
                 }
+            };
+
+            ws.onclose = function() {
+                connected = false;
+                document.getElementById('status').innerHTML = '🔴 Отключено';
+                document.getElementById('text').disabled = true;
+                document.getElementById('send-btn').disabled = true;
+                document.getElementById('file-btn').disabled = true;
+                addSystemMessage('❌ Отключился от чата');
+                document.getElementById('connect-screen').classList.remove('hidden');
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket ошибка:', error);
+                addSystemMessage('❌ Ошибка подключения');
+            };
+        }
+
+        function send() {
+            if (!connected) return;
+            const text = document.getElementById('text').value.trim();
+            if (!text) return;
+            
+            ws.send(JSON.stringify({
+                type: 'message',
+                text: text
+            }));
+            
+            document.getElementById('text').value = '';
+        }
+
+        function selectFile() {
+            document.getElementById('file-input').click();
+        }
+
+        document.getElementById('file-input').onchange = function() {
+            if (!this.files || this.files.length === 0 || !connected) return;
+            
+            const file = this.files[0];
+            
+            // Проверка размера (макс 100 МБ)
+            if (file.size > 100 * 1024 * 1024) {
+                alert('Файл слишком большой! Максимум 100 МБ');
+                return;
             }
             
-            content += (msg.text && !msg.text.startsWith('📎')) ? msg.text : '';
-            content += '<small>' + time + '</small>';
-            div.innerHTML = content;
+            // Отправляем метаданные
+            ws.send(JSON.stringify({
+                type: 'file_metadata',
+                fileName: file.name,
+                fileType: file.type.startsWith('image/') ? 'image' : 
+                          file.type.startsWith('video/') ? 'video' : 
+                          file.type.startsWith('audio/') ? 'audio' : 'file',
+                fileSize: file.size
+            }));
+            
+            // Используем большой чанк 64 КБ для надежности
+            const chunkSize = 64 * 1024; // 64 КБ
+            let offset = 0;
+            let chunkIndex = 0;
+            const totalChunks = Math.ceil(file.size / chunkSize);
+            
+            const progress = document.getElementById('file-progress');
+            progress.style.display = 'block';
+            progress.innerHTML = `0% (${file.name}) [0/${totalChunks}]`;
+            
+            function sendNextChunk() {
+                const chunk = file.slice(offset, offset + chunkSize);
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        // Отправляем чанк
+                        ws.send(e.target.result);
+                        
+                        offset += chunkSize;
+                        chunkIndex++;
+                        let percent = Math.min(100, Math.round((offset / file.size) * 100));
+                        progress.innerHTML = `${percent}% (${file.name}) [${chunkIndex}/${totalChunks}]`;
+                        
+                        if (offset < file.size) {
+                            // Задержка между чанками, чтобы не перегружать канал
+                            setTimeout(sendNextChunk, 30);
+                        } else {
+                            progress.innerHTML = `✅ 100% (${file.name}) - ожидание подтверждения...`;
+                        }
+                    } catch (err) {
+                        console.error('Ошибка отправки чанка:', err);
+                        progress.innerHTML = '❌ Ошибка отправки';
+                        setTimeout(() => progress.style.display = 'none', 3000);
+                    }
+                };
+                
+                reader.onerror = function() {
+                    progress.innerHTML = '❌ Ошибка чтения файла';
+                    setTimeout(() => progress.style.display = 'none', 3000);
+                };
+                
+                reader.readAsArrayBuffer(chunk);
+            }
+            
+            sendNextChunk();
+            this.value = '';
+        };
+
+        function addMessage(msg) {
+            const messagesDiv = document.getElementById('messages');
+            const div = document.createElement('div');
+            
+            if (msg.sender === 'system') {
+                div.className = 'message system';
+                div.innerText = msg.text;
+            } else {
+                div.className = 'message ' + (msg.sender === device ? 'my' : 'other');
+                
+                let content = '<b>' + (msg.sender === device ? 'Я' : msg.sender) + ':</b> ';
+                
+                if (msg.fileId) {
+                    if (msg.fileType === 'image') {
+                        content += '<div><img src="/file/' + msg.fileId + '" class="media-preview" onclick="window.open(\'/file/' + msg.fileId + '\')"></div>';
+                    } else if (msg.fileType === 'video') {
+                        content += '<div><video src="/file/' + msg.fileId + '" controls style="max-width:200px; max-height:200px;"></video></div>';
+                    } else if (msg.fileType === 'audio') {
+                        content += '<div><audio src="/file/' + msg.fileId + '" controls></audio></div>';
+                    } else {
+                        content += '<div><a href="/file/' + msg.fileId + '" class="file-link" target="_blank">📎 ' + (msg.fileName || 'Файл') + '</a></div>';
+                    }
+                }
+                
+                if (msg.text && !msg.text.startsWith('📎')) {
+                    content += msg.text;
+                }
+                
+                div.innerHTML = content;
+            }
+            
+            messagesDiv.appendChild(div);
+            div.scrollIntoView({behavior: 'smooth'});
         }
-        
-        messagesDiv.appendChild(div);
-        div.scrollIntoView({behavior: 'smooth', block: 'end'});
-    }
 
-    function addSystemMessage(text) {
-        const div = document.createElement('div');
-        div.className = 'message system';
-        div.innerHTML = text;
-        document.getElementById('messages').appendChild(div);
-        div.scrollIntoView({behavior: 'smooth', block: 'end'});
-    }
+        function addSystemMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'message system';
+            div.innerText = text;
+            document.getElementById('messages').appendChild(div);
+            div.scrollIntoView({behavior: 'smooth'});
+        }
 
-    function updateUsers(users) {
-        const usersDiv = document.getElementById('users');
-        usersDiv.innerHTML = '';
-        document.getElementById('online-count').innerText = users.length;
-        users.forEach(u => {
-            const span = document.createElement('span');
-            span.className = 'user online';
-            span.innerHTML = '🟢 ' + u.device;
-            usersDiv.appendChild(span);
+        document.getElementById('text').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && connected) send();
         });
-    }
-
-    function updateUI() {
-        const status = document.getElementById('status');
-        const text = document.getElementById('text');
-        const sendBtn = document.getElementById('send-btn');
-
-        if (connected) {
-            status.className = 'connected';
-            status.innerHTML = '🟢';
-            text.disabled = false;
-            sendBtn.disabled = false;
-            text.focus();
-        } else {
-            status.className = 'disconnected';
-            status.innerHTML = '🔴';
-            text.disabled = true;
-            sendBtn.disabled = true;
-        }
-    }
-
-    // Обработка Enter
-    document.getElementById('text').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter' && connected) send();
-    });
-
-    document.getElementById('device-input').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') connect();
-    });
-
-    // Убираем typing индикатор
-    document.getElementById('text').addEventListener('input', function() {
-        // Не отправляем typing события
-    });
-</script>
+    </script>
 </body>
 </html>

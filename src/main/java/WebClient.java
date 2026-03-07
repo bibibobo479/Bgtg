@@ -18,7 +18,7 @@ import java.util.ArrayList;
 
 public class WebClient {
     
-    private static final String STATIC_DIR = "/root/websocket-chat/src/main/resources/static";
+    private static final String STATIC_DIR = "/root/chat/Bgtg/src/main/resources/static";
     private static final String SERVER_URL = "http://188.92.28.209:8080";
     private static final String FILE_SERVER_URL = "http://188.92.28.209:8081";
     

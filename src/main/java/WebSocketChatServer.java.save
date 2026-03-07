@@ -204,7 +204,6 @@ public class WebSocketChatServer {
         String fileName;
         String fileType;
         String sender;
-        long expectedSize = 0;
         java.io.File tempFile;
         java.io.FileOutputStream fileStream;
         long totalBytes = 0;
@@ -248,135 +247,116 @@ public class WebSocketChatServer {
             }
         }
     }
-
-@ServerEndpoint("/chat/{device}")
-public static class ChatEndpoint {
-    private static final Map<Session, FileAssembly> fileAssemblies = new ConcurrentHashMap<>();
     
-    @OnMessage
-    public void onMessage(ByteBuffer message, boolean last, Session session, @PathParam("device") String device) {
-        FileAssembly assembly = fileAssemblies.get(session);
-        if (assembly == null) {
-            // Если сборщика нет - создаем новый автоматически
-            assembly = new FileAssembly();
-            fileAssemblies.put(session, assembly);
-            System.out.println("🆕 Автоматически создан новый сборщик для сессии " + device);
-        }
+    @ServerEndpoint("/chat/{device}")
+    public static class ChatEndpoint {
+        private static final Map<Session, FileAssembly> fileAssemblies = new ConcurrentHashMap<>();
         
-        try {
-            byte[] chunk = new byte[message.remaining()];
-            message.get(chunk);
-            assembly.append(chunk);
-            
-            System.out.println("📦 Получен чанк от " + device + ", размер: " + chunk.length + 
-                              ", всего: " + assembly.totalBytes + ", last: " + last);
-            
-            // Проверяем, получили ли мы все байты
-            if (assembly.expectedSize > 0 && assembly.totalBytes >= assembly.expectedSize) {
-                System.out.println("🏁 Получены все байты (" + assembly.totalBytes + " из " + assembly.expectedSize + "), завершаем...");
-                
-                String fileId = assembly.finish();
-                
-                Map<String, Object> response = new HashMap<>();
-                response.put("type", "upload_complete");
-                response.put("fileId", fileId);
-                response.put("fileName", assembly.fileName);
-                response.put("fileType", assembly.fileType);
-                response.put("size", assembly.totalBytes);
-                
-                String json = gson.toJson(response);
-                session.getAsyncRemote().sendText(json);
-                
-                // НЕ удаляем сборщик сразу, чтобы избежать race condition
-                // Просто сбрасываем его для следующей загрузки
-                FileAssembly oldAssembly = fileAssemblies.remove(session);
-                if (oldAssembly != null) {
-                    System.out.println("🧹 Сборщик удален для сессии " + device);
-                }
-                
-                System.out.println("✅ Файл загружен: " + assembly.fileName + ", ID: " + fileId);
-            }
-            
-        } catch (Exception e) {
-            e.printStackTrace();
-            FileAssembly failed = fileAssemblies.remove(session);
-            if (failed != null) failed.cleanup();
-        }
+       @OnMessage
+public void onMessage(ByteBuffer message, boolean last, Session session, @PathParam("device") String device) {
+    FileAssembly assembly = fileAssemblies.get(session);
+    if (assembly == null) {
+        // Просто игнорируем - файл уже загружен
+        System.out.println("⚠️ Получен чанк после завершения загрузки, игнорируем");
+        return;
     }
     
-    @OnMessage
-    public void onMessage(String message, Session session, @PathParam("device") String device) {
-        try {
-            Map<String, Object> msgData = gson.fromJson(message, Map.class);
-            String type = (String) msgData.get("type");
+    try {
+        byte[] chunk = new byte[message.remaining()];
+        message.get(chunk);
+        assembly.append(chunk);
+        
+        System.out.println("📦 Получен чанк от " + device + ", размер: " + chunk.length + ", всего: " + assembly.totalBytes + ", последний: " + last);
+        
+        if (last) {
+            System.out.println("🏁 Последний чанк получен, завершаем сборку файла...");
+            String fileId = assembly.finish();
             
-            if ("file_metadata".equals(type)) {
+            // Отправляем подтверждение ДО удаления сборщика
+            Map<String, Object> response = new HashMap<>();
+            response.put("type", "upload_complete");
+            response.put("fileId", fileId);
+            response.put("fileName", assembly.fileName);
+            response.put("fileType", assembly.fileType);
+            response.put("size", assembly.totalBytes);
+            
+            String json = gson.toJson(response);
+            session.getAsyncRemote().sendText(json);
+            
+            // Удаляем сборщик ПОСЛЕ отправки подтверждения
+            fileAssemblies.remove(session);
+            
+            System.out.println("✅ Файл загружен: " + assembly.fileName + ", ID: " + fileId);
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
+        FileAssembly failed = fileAssemblies.remove(session);
+        if (failed != null) failed.cleanup();
+    }
+} 
+        @OnMessage
+        public void onMessage(String message, Session session, @PathParam("device") String device) {
+            try {
+                Map<String, Object> msgData = gson.fromJson(message, Map.class);
+                String type = (String) msgData.get("type");
+                
+                if ("file_metadata".equals(type)) {
+                    String fileName = (String) msgData.get("fileName");
+                    String fileType = (String) msgData.get("fileType");
+                    FileAssembly assembly = fileAssemblies.get(session);
+                    if (assembly != null) {
+                        assembly.start(fileName, fileType, device);
+                        System.out.println("📋 Метаданные файла: " + fileName + " (" + fileType + ")");
+                    }
+                    return;
+                }
+                
+                String text = (String) msgData.get("text");
+                String fileId = (String) msgData.get("fileId");
                 String fileName = (String) msgData.get("fileName");
                 String fileType = (String) msgData.get("fileType");
-                long fileSize = msgData.containsKey("fileSize") ? ((Number) msgData.get("fileSize")).longValue() : 0;
                 
-                // СОЗДАЕМ НОВЫЙ СБОРЩИК ДЛЯ КАЖДОГО ФАЙЛА
-                FileAssembly assembly = new FileAssembly();
-                assembly.start(fileName, fileType, device);
-                assembly.expectedSize = fileSize;
+                Map<String, Object> outgoingMsg = new HashMap<>();
+                outgoingMsg.put("type", "message");
+                outgoingMsg.put("sender", device);
+                outgoingMsg.put("text", text);
+                outgoingMsg.put("fileId", fileId);
+                outgoingMsg.put("fileName", fileName);
+                outgoingMsg.put("fileType", fileType);
+                outgoingMsg.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
                 
-                // Сохраняем в карту, заменяя старый
-                FileAssembly old = fileAssemblies.put(session, assembly);
-                if (old != null) {
-                    old.cleanup(); // Очищаем старый, если был
-                    System.out.println("🔄 Заменен старый сборщик для сессии " + device);
+                saveMessageToDB(device, text, fileId, fileName, fileType);
+                
+                String json = gson.toJson(outgoingMsg);
+                System.out.println("📤 Сообщение от " + device + " для " + clients.size() + " клиентов: " + text);
+                
+                // Отправляем ВСЕМ клиентам (включая отправителя)
+                int sentCount = 0;
+                for (Map.Entry<String, Session> entry : clients.entrySet()) {
+                    Session s = entry.getValue();
+                    if (s != null && s.isOpen()) {
+                        s.getAsyncRemote().sendText(json);
+                        sentCount++;
+                        System.out.println("✅ Отправлено клиенту: " + entry.getKey());
+                    }
                 }
+                System.out.println("📊 Итого отправлено: " + sentCount + " клиентам");
                 
-                System.out.println("📋 Метаданные файла: " + fileName + " (" + fileType + "), размер: " + fileSize + " байт");
-                return;
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-            
-            // Обычное текстовое сообщение
-            String text = (String) msgData.get("text");
-            String fileId = (String) msgData.get("fileId");
-            String fileName = (String) msgData.get("fileName");
-            String fileType = (String) msgData.get("fileType");
-            
-            Map<String, Object> outgoingMsg = new HashMap<>();
-            outgoingMsg.put("type", "message");
-            outgoingMsg.put("sender", device);
-            outgoingMsg.put("text", text);
-            outgoingMsg.put("fileId", fileId);
-            outgoingMsg.put("fileName", fileName);
-            outgoingMsg.put("fileType", fileType);
-            outgoingMsg.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
-            
-            saveMessageToDB(device, text, fileId, fileName, fileType);
-            
-            String json = gson.toJson(outgoingMsg);
-            System.out.println("📤 Сообщение от " + device + " для " + clients.size() + " клиентов: " + text);
-            
-            int sentCount = 0;
-            for (Map.Entry<String, Session> entry : clients.entrySet()) {
-                Session s = entry.getValue();
-                if (s != null && s.isOpen()) {
-                    s.getAsyncRemote().sendText(json);
-                    sentCount++;
-                }
-            }
-            System.out.println("📊 Итого отправлено: " + sentCount + " клиентам");
-            
-        } catch (Exception e) {
-            System.err.println("❌ Ошибка обработки текстового сообщения: " + e.getMessage());
-            e.printStackTrace();
         }
-    }
-    
-    @OnOpen
-    public void onOpen(Session session, @PathParam("device") String device) {
-        clients.put(device, session);
-        users.put(device, new User(device, device));
-        // НЕ создаем сборщик здесь - будем создавать при получении метаданных
-        System.out.println("🔌 Подключен: " + device);
-        System.out.println("📊 Всего клиентов: " + clients.size());
-        System.out.println("📋 Список клиентов: " + clients.keySet());
         
-        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:chat.db");
+        @OnOpen
+        public void onOpen(Session session, @PathParam("device") String device) {
+            clients.put(device, session);
+            users.put(device, new User(device, device));
+            fileAssemblies.put(session, new FileAssembly());
+            System.out.println("🔌 Подключен: " + device);
+            System.out.println("📊 Всего клиентов: " + clients.size());
+            System.out.println("📋 Список клиентов: " + clients.keySet());
+            
+            try (Connection conn = DriverManager.getConnection("jdbc:sqlite:chat.db");
                  PreparedStatement pstmt = conn.prepareStatement(
                     "INSERT OR REPLACE INTO users (device_name, nickname, last_seen) VALUES (?, ?, ?)")) {
                 pstmt.setString(1, device);
@@ -400,6 +380,7 @@ public static class ChatEndpoint {
             welcomeMsg.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
             
             String json = gson.toJson(welcomeMsg);
+            // Рассылаем всем о новом пользователе
             for (Map.Entry<String, Session> entry : clients.entrySet()) {
                 Session s = entry.getValue();
                 if (s != null && s.isOpen()) {
@@ -425,6 +406,7 @@ public static class ChatEndpoint {
             byeMsg.put("time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
             
             String json = gson.toJson(byeMsg);
+            // Рассылаем всем об отключении
             for (Map.Entry<String, Session> entry : clients.entrySet()) {
                 Session s = entry.getValue();
                 if (s != null && s.isOpen()) {
@@ -439,7 +421,7 @@ public static class ChatEndpoint {
             FileAssembly assembly = fileAssemblies.remove(session);
             if (assembly != null) assembly.cleanup();
         }
-    }    
+    }
     
     static class FileUploadHandler implements HttpHandler {
         @Override
@@ -459,8 +441,9 @@ public static class ChatEndpoint {
                 String boundary = contentType.split("boundary=")[1];
                 byte[] body = readAllBytes(exchange.getRequestBody());
                 
+                // Используем правильное имя класса - String, а не Str
                 String bodyStr = new String(body, 0, Math.min(body.length, 16384), 
-                                           java.nio.charset.StandardCharsets.ISO_8859_1);
+                                        java.nio.charset.StandardCharsets.ISO_8859_1);
                 
                 String filename = "file.bin";
                 int filenameIdx = bodyStr.indexOf("filename=\"");
@@ -515,7 +498,7 @@ public static class ChatEndpoint {
                 byte[] fileData = Arrays.copyOfRange(body, fileStart, fileEnd);
                 String fileId = UUID.randomUUID().toString();
                 String safeFilename = fileId + "_" + sanitizeFilename(filename);
-                Path filePath = Paths.get(UPLOAD_DIR, safeFilename);
+                Path filePath= Paths.get(UPLOAD_DIR, safeFilename);
                 
                 Files.write(filePath, fileData);
                 
