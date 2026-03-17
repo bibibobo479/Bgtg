@@ -35,7 +35,7 @@ public class WebSocketChatServer {
         properties.put("org.glassfish.tyrus.incomingBufferSize", 20 * 1024 * 1024);
         properties.put("org.glassfish.tyrus.maxSessionMessageSize", 20 * 1024 * 1024);
 
-        Server server = new Server("localhost", 8080, "/ws", properties, ChatEndpoint.class);
+        Server server = new Server("188.92.28.209", 8080, "/ws", properties, ChatEndpoint.class);
 
         try {
             server.start();
