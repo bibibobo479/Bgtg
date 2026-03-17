@@ -18,9 +18,9 @@ import java.util.ArrayList;
 
 public class WebClient {
     
-    private static final String STATIC_DIR = "/root/chat/Bgtg/src/main/resources/static";
-    private static final String SERVER_URL = "http://188.92.28.209:8080";
-    private static final String FILE_SERVER_URL = "http://188.92.28.209:8081";
+    private static final String STATIC_DIR = "src/main/resources/static";
+    private static final String SERVER_URL = "http://localhost:8080";
+    private static final String FILE_SERVER_URL = "http://localhost:8081";
     
     public static void main(String[] args) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", 5001), 0);
@@ -33,7 +33,7 @@ public class WebClient {
         server.createContext("/api/users", new ApiProxyHandler("/users"));
         server.createContext("/api/send", new ApiProxyHandler("/send"));
         server.createContext("/api/receive", new ApiProxyHandler("/receive"));
-        server.createContext("/api/history/", new HistoryProxyHandler());
+        server.createContext("/api/history/", new LazyHistoryProxyHandler());
         server.createContext("/api/disconnect", new ApiProxyHandler("/disconnect"));
         
         // Файловые обработчики (прокси на файловый сервер)
@@ -97,7 +97,57 @@ public class WebClient {
             exchange.close();
         }
     }
-    
+    // Добавьте класс:
+    static class LazyHistoryProxyHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            String path = exchange.getRequestURI().getPath();
+            String query = exchange.getRequestURI().getQuery();
+
+            String url = "http://localhost:8082" + path;
+            if (query != null) {
+                url += "?" + query;
+            }
+
+            System.out.println("🔄 History прокси: " + url);
+
+            try {
+                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+
+                int responseCode = conn.getResponseCode();
+
+                // Копируем заголовки
+                exchange.getResponseHeaders().set("Content-Type",
+                    conn.getContentType() != null ? conn.getContentType() : "application/json");
+                exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+                exchange.sendResponseHeaders(responseCode, 0);
+
+                // Копируем тело
+                try (InputStream is = responseCode >= 400 ? conn.getErrorStream() : conn.getInputStream();
+                    OutputStream os = exchange.getResponseBody()) {
+                    byte[] buffer = new byte[8192];
+                    int len;
+                    while ((len = is.read(buffer)) != -1) {
+                        os.write(buffer, 0, len);
+                    }
+                }
+
+            } catch (Exception e) {
+                System.err.println("❌ Ошибка History прокси: " + e.getMessage());
+                e.printStackTrace();
+
+                String error = "{\"error\":\"" + e.getMessage() + "\"}";
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(500, error.length());
+                exchange.getResponseBody().write(error.getBytes());
+            } finally {
+                exchange.close();
+            }
+        }
+    }
     // Прокси для API запросов к основному серверу
     static class ApiProxyHandler implements HttpHandler {
         private final String targetPath;
