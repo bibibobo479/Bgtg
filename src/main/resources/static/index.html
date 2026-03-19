@@ -5,6 +5,7 @@
     <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'>
     <title>Чат с файлами</title>
     <style>
+        /* ===== ОСНОВНЫЕ СТИЛИ ===== */
         * {
             margin: 0;
             padding: 0;
@@ -19,6 +20,15 @@
             line-height: 1.4;
         }
 
+        #app {
+            height: 100vh;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* ===== СТИЛИ ЧАТА ===== */
         #chat {
             width: 100%;
             max-width: 800px;
@@ -31,7 +41,7 @@
             position: relative;
         }
 
-        /* Шапка */
+        /* Шапка чата */
         #header {
             background: #008069;
             color: white;
@@ -118,7 +128,7 @@
             font-size: 0.8rem;
         }
 
-        .users-list {
+        #users-list {
             overflow-y: auto;
             padding: 8px;
             max-height: 120px;
@@ -190,6 +200,12 @@
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(5px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
         }
 
         .my {
@@ -351,78 +367,6 @@
             display: none;
         }
 
-        /* Экран подключения */
-        #connect-screen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(135deg, #008069 0%, #006954 100%);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-            padding: 20px;
-        }
-
-        #connect-screen.hidden {
-            display: none;
-        }
-
-        .connect-container {
-            background: white;
-            border-radius: 24px;
-            padding: 32px;
-            width: 100%;
-            max-width: 400px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-        }
-
-        .connect-container h1 {
-            color: #008069;
-            margin-bottom: 24px;
-            font-size: 1.8rem;
-            text-align: center;
-        }
-
-        #connect-screen input {
-            padding: 14px 16px;
-            width: 100%;
-            margin-bottom: 16px;
-            border: 2px solid #e0e0e0;
-            border-radius: 12px;
-            font-size: 1rem;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        #connect-screen input:focus {
-            border-color: #008069;
-        }
-
-        #connect-screen button {
-            padding: 14px;
-            width: 100%;
-            background: #008069;
-            color: white;
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            font-size: 1.1rem;
-            font-weight: 600;
-            transition: background 0.2s;
-        }
-
-        #connect-screen button:hover {
-            background: #006954;
-        }
-
-        #connect-screen button:active {
-            transform: scale(0.98);
-        }
-
         /* Прогресс и очередь */
         #file-progress {
             display: none;
@@ -458,10 +402,212 @@
             animation: pulse 1.5s infinite;
         }
 
-        @keyframes pulse {
-            0% { opacity: 0.6; }
-            50% { opacity: 1; }
-            100% { opacity: 0.6; }
+        /* ===== СТИЛИ АВТОРИЗАЦИИ ===== */
+        .auth-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(135deg, #008069 0%, #006954 100%);
+        }
+
+        .auth-header {
+            background: white;
+            border-radius: 0 0 30px 30px;
+            padding: 40px 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .auth-header h1 {
+            color: #008069;
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+        }
+
+        .auth-header p {
+            color: #666;
+            font-size: 1rem;
+        }
+
+        .auth-form {
+            background: white;
+            margin: 20px;
+            padding: 30px 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #f0f0f0;
+            gap: 10px;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 3px solid transparent;
+        }
+
+        .auth-tab.active {
+            color: #008069;
+            border-bottom-color: #008069;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            border-color: #008069;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(0,128,105,0.1);
+        }
+
+        .form-group input.error {
+            border-color: #dc3545;
+        }
+
+        .auth-button {
+            width: 100%;
+            padding: 16px;
+            background: #008069;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 10px;
+        }
+
+        .auth-button:hover:not(:disabled) {
+            background: #006954;
+        }
+
+        .auth-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .auth-links {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+        }
+
+        .auth-links a {
+            color: #008069;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .auth-links a:hover {
+            text-decoration: underline;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        /* Экран подтверждения email */
+        .verification-container {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .verification-icon {
+            font-size: 5rem;
+            margin-bottom: 20px;
+        }
+
+        .verification-code {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #008069;
+            letter-spacing: 8px;
+            margin: 20px 0;
+        }
+
+        .verification-timer {
+            color: #666;
+            font-size: 0.9rem;
+            margin: 15px 0;
+        }
+
+        .resend-link {
+            color: #008069;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        /* Стили для скроллбара */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
         }
 
         /* Адаптивность */
@@ -495,12 +641,18 @@
                 max-height: 160px;
             }
 
-            .users-list {
+            #users-list {
                 max-height: 100px;
             }
 
-            .connect-container {
-                padding: 24px;
+            .auth-form {
+                margin: 10px;
+                padding: 20px 15px;
+            }
+
+            .auth-tab {
+                padding: 12px;
+                font-size: 1rem;
             }
         }
 
@@ -525,598 +677,887 @@
             #status {
                 font-size: 0.8rem;
             }
-
-            .users-header {
-                padding: 8px 12px;
-                font-size: 0.9rem;
-            }
-
-            .user-item {
-                padding: 6px 10px;
-                font-size: 0.8rem;
-            }
         }
 
-        /* Для очень высоких экранов */
         @media (min-height: 800px) {
             #users-panel {
                 max-height: 200px;
             }
 
-            .users-list {
+            #users-list {
                 max-height: 140px;
             }
-        }
-
-        /* Для планшетов */
-        @media (min-width: 768px) and (max-width: 1024px) {
-            #chat {
-                max-width: 600px;
-            }
-        }
-
-        /* Стили для скроллбара */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 3px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
         }
     </style>
 </head>
 <body>
-    <div id='chat'>
-        <div id='connect-screen'>
-            <div class="connect-container">
-                <h1>Чат с файлами</h1>
-                <input type='text' id='device-input' placeholder='Ваше имя' value='User' autocomplete="off">
-                <button onclick='connect()'>Войти</button>
+    <div id='app'>
+        <!-- Экран входа/регистрации -->
+        <div id='auth-screen' class='auth-container'>
+            <div class="auth-header">
+                <h1>📱 Чат с файлами</h1>
+                <p>Войдите или зарегистрируйтесь</p>
+            </div>
+
+            <div class="auth-form">
+                <div class="auth-tabs">
+                    <div class="auth-tab active" onclick="switchAuthTab('login')">Вход</div>
+                    <div class="auth-tab" onclick="switchAuthTab('register')">Регистрация</div>
+                </div>
+
+                <div id="error-message" class="error-message"></div>
+                <div id="success-message" class="success-message"></div>
+
+                <!-- Форма входа -->
+                <form id="login-form" onsubmit="login(event)">
+                    <div class="form-group">
+                        <label>📧 Email</label>
+                        <input type="email" id="login-email" placeholder="your@email.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label>🔒 Пароль</label>
+                        <input type="password" id="login-password" placeholder="••••••••" required>
+                    </div>
+                    <button type="submit" class="auth-button" id="login-button">Войти</button>
+                </form>
+
+                <!-- Форма регистрации -->
+                <form id="register-form" class="hidden" onsubmit="register(event)">
+                    <div class="form-group">
+                        <label>👤 Имя пользователя</label>
+                        <input type="text" id="register-username" placeholder="Как к вам обращаться?" required>
+                    </div>
+                    <div class="form-group">
+                        <label>📧 Email</label>
+                        <input type="email" id="register-email" placeholder="your@email.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label>📱 Устройство</label>
+                        <input type="text" id="register-device" placeholder="Название устройства" value="Мобильный телефон">
+                    </div>
+                    <div class="form-group">
+                        <label>🔒 Пароль</label>
+                        <input type="password" id="register-password" placeholder="Минимум 6 символов" minlength="6" required>
+                    </div>
+                    <div class="form-group">
+                        <label>🔒 Подтверждение пароля</label>
+                        <input type="password" id="register-confirm" placeholder="Введите пароль еще раз" required>
+                    </div>
+                    <button type="submit" class="auth-button" id="register-button">Зарегистрироваться</button>
+                </form>
+
+                <!-- Экран подтверждения email -->
+                <div id="verification-screen" class="hidden">
+                    <div class="verification-container">
+                        <div class="verification-icon">✉️</div>
+                        <h3>Подтвердите email</h3>
+                        <p>Мы отправили код подтверждения на</p>
+                        <p id="verification-email" style="font-weight: bold; color: #008069;"></p>
+
+                        <div class="form-group">
+                            <label>Код подтверждения</label>
+                            <input type="text" id="verification-code" placeholder="Введите 6-значный код" maxlength="6" pattern="\d*" inputmode="numeric">
+                        </div>
+
+                        <button class="auth-button" onclick="verifyEmail()">Подтвердить</button>
+
+                        <div class="verification-timer">
+                            <span id="timer">02:00</span> до повторной отправки
+                        </div>
+
+                        <a href="#" class="resend-link" onclick="resendCode()">Отправить код повторно</a>
+                    </div>
+                </div>
+
+                <div class="auth-links">
+                    <a href="#" onclick="forgotPassword()">Забыли пароль?</a>
+                </div>
             </div>
         </div>
 
-        <div id='header'>
-            <span id='device-name'></span>
-            <div class="header-actions">
-                <span id='users-count'>0</span>
-                <span id='status'>🔴 Отключено</span>
+        <!-- Основной чат -->
+        <div id='chat' class='hidden'>
+            <div id='header'>
+                <span id='device-name'></span>
+                <div class="header-actions">
+                    <span id='users-count'>0</span>
+                    <span id='status'>🔴 Отключено</span>
+                    <button onclick="logout()" style="background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer;">🚪</button>
+                </div>
             </div>
-        </div>
 
-        <div id='users-panel'>
-            <div class="users-header">
-                <span>Пользователи онлайн</span>
-                <span id='users-count-header'>0</span>
+            <div id='users-panel'>
+                <div class="users-header">
+                    <span>Пользователи онлайн</span>
+                    <span id='users-count-header'>0</span>
+                </div>
+                <div id='users-list' class='users-list'></div>
             </div>
-            <div id='users-list' class='users-list'></div>
-        </div>
 
-        <div id='messages'></div>
-        <div id='file-queue'></div>
-        <div id='file-progress'></div>
+            <div id='messages'></div>
+            <div id='file-queue'></div>
+            <div id='file-progress'></div>
 
-        <div id='input-area'>
-            <input type='text' id='text' placeholder='Сообщение...' disabled>
-            <input type='file' id='file-input' multiple>
-            <button id='file-btn' class="action-btn" onclick='selectFile()' disabled>📎</button>
-            <button id='send-btn' class="action-btn" onclick='send()' disabled>➤</button>
+            <div id='input-area'>
+                <input type='text' id='text' placeholder='Сообщение...' disabled>
+                <input type='file' id='file-input' multiple>
+                <button id='file-btn' class="action-btn" onclick='selectFile()' disabled>📎</button>
+                <button id='send-btn' class="action-btn" onclick='send()' disabled>➤</button>
+            </div>
         </div>
     </div>
 
-    <script>
-        // Весь JavaScript код остается без изменений
-        let ws = null;
-        let device = '';
-        let connected = false;
-        const WS_URL = 'ws://188.92.28.209:8080/ws/chat/';
+<script>
+    // ===== ПЕРЕМЕННЫЕ =====
+    let ws = null;
+    let currentUser = null;
+    let connected = false;
+    const WS_URL = 'ws://localhost:8080/ws/chat/'; // Замени на свой IP если нужно
 
-        let onlineUsers = [];
-        let messageHistory = [];
-        let historyOffset = 0;
-        let historyLimit = 20;
-        let isLoadingHistory = false;
-        let hasMoreHistory = true;
-        let messagesDiv = document.getElementById('messages');
+    let typingTimeout;
+    let typingUsers = new Map();
+    let onlineUsers = [];
 
-        let typingTimeout;
-        let typingUsers = new Map();
+    // ===== ПЕРЕМЕННЫЕ ДЛЯ ФАЙЛОВ =====
+    let fileQueue = [];
+    let currentFileIndex = 0;
+    let isUploading = false;
+    const CHUNK_SIZE = 64 * 1024; // 64KB чанки
 
-        let fileQueue = [];
-        let currentFileIndex = 0;
-        let isUploading = false;
+    // ===== ПЕРЕМЕННЫЕ ДЛЯ ИСТОРИИ =====
+    let messageHistory = [];
+    let historyOffset = 0;
+    let historyLimit = 20;
+    let isLoadingHistory = false;
+    let hasMoreHistory = true;
 
-        function connect() {
-            device = document.getElementById('device-input').value.trim();
-            if (!device) device = 'User' + Math.floor(Math.random() * 1000);
+    // ===== КЕШ ДЛЯ ФАЙЛОВ =====
+    const fileCache = new Map();
+    const CACHE_VERSION = '1.0';
 
-            document.getElementById('device-name').innerText = device;
-            document.getElementById('connect-screen').classList.add('hidden');
+    // ===== ФУНКЦИИ АВТОРИЗАЦИИ =====
+    function switchAuthTab(tab) {
+        document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+        event.target.classList.add('active');
 
-            ws = new WebSocket(WS_URL + encodeURIComponent(device));
+        if (tab === 'login') {
+            document.getElementById('login-form').classList.remove('hidden');
+            document.getElementById('register-form').classList.add('hidden');
+            document.getElementById('verification-screen').classList.add('hidden');
+        } else {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('register-form').classList.remove('hidden');
+            document.getElementById('verification-screen').classList.add('hidden');
+        }
+    }
 
-            ws.onopen = function() {
-                connected = true;
-                document.getElementById('status').innerHTML = '🟢 Подключено';
-                document.getElementById('text').disabled = false;
-                document.getElementById('send-btn').disabled = false;
-                document.getElementById('file-btn').disabled = false;
-                addSystemMessage('✅ Подключился к чату');
-                document.getElementById('text').focus();
+    function showError(message) {
+        const errorEl = document.getElementById('error-message');
+        errorEl.textContent = message;
+        errorEl.classList.add('show');
+        setTimeout(() => errorEl.classList.remove('show'), 5000);
+    }
 
-                messageHistory = [];
-                historyOffset = 0;
-                hasMoreHistory = true;
-            };
+    function showSuccess(message) {
+        const successEl = document.getElementById('success-message');
+        successEl.textContent = message;
+        successEl.classList.add('show');
+        setTimeout(() => successEl.classList.remove('show'), 5000);
+    }
 
-            ws.onmessage = function(event) {
-                if (typeof event.data === 'string') {
-                    try {
-                        const data = JSON.parse(event.data);
-                        console.log('Получено:', data.type);
+    // ===== ФУНКЦИЯ ВХОДА =====
+    async function login(event) {
+        event.preventDefault();
 
-                        if (data.type === 'message') {
-                            addMessage(data);
-                        }
-                        else if (data.type === 'users') {
-                            updateUsersList(data.users);
-                        }
-                        else if (data.type === 'typing') {
-                            handleTypingIndicator(data.sender, data.typing);
-                        }
-                        else if (data.type === 'history' && data.messages) {
-                            document.getElementById('messages').innerHTML = '';
-                            data.messages.forEach(m => addMessage(m));
-                            scrollToBottom();
-                        }
-                        else if (data.type === 'upload_complete') {
-                            const progress = document.getElementById('file-progress');
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value;
 
-                            if (fileQueue[currentFileIndex]) {
-                                fileQueue[currentFileIndex].status = 'done';
+        const button = document.getElementById('login-button');
+        button.disabled = true;
+        button.textContent = 'Вход...';
 
-                                progress.innerHTML = `✅ Файл ${currentFileIndex + 1}/${fileQueue.length} загружен: ${data.fileName}`;
+        try {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
 
-                                // Отправляем сообщение о файле в чат (только один раз)
-                                const fileMsg = {
-                                    type: 'message',
-                                    text: `📎 ${data.fileName}`,
-                                    fileId: data.fileId,
-                                    fileName: data.fileName,
-                                    fileType: data.fileType
-                                };
-                                ws.send(JSON.stringify(fileMsg));
+            const data = await response.json();
 
-                                setTimeout(() => {
-                                    if (currentFileIndex + 1 < fileQueue.length) {
-                                        progress.innerHTML = '⏳ Подготовка следующего файла...';
-                                    } else {
-                                        progress.style.display = 'none';
-                                    }
-                                    moveToNextFile();
-                                }, 1000);
-                            }
-                        }
-                    } catch (e) {
-                        console.error('Ошибка парсинга:', e);
-                    }
-                } else {
-                    console.log('Получен бинарный чанк, размер:', event.data.byteLength);
-                }
-            };
+            if (response.ok) {
+                currentUser = data.user;
 
-            ws.onclose = function() {
-                connected = false;
-                document.getElementById('status').innerHTML = '🔴 Отключено';
-                document.getElementById('text').disabled = true;
-                document.getElementById('send-btn').disabled = true;
-                document.getElementById('file-btn').disabled = true;
-                document.getElementById('connect-screen').classList.remove('hidden');
+                document.getElementById('auth-screen').classList.add('hidden');
+                document.getElementById('chat').classList.remove('hidden');
+                document.getElementById('device-name').innerText = data.user.username;
 
-                onlineUsers = [];
-                updateUsersList([]);
+                // Очищаем сообщения перед подключением
+                document.getElementById('messages').innerHTML = '';
 
-                fileQueue = [];
-                currentFileIndex = 0;
-                isUploading = false;
-                updateFileQueue();
-            };
+                // Подключаемся к WebSocket
+                connectWebSocket(data.user.username);
 
-            ws.onerror = function(error) {
-                console.error('WebSocket ошибка:', error);
-                addSystemMessage('❌ Ошибка подключения');
-            };
+                showSuccess('Вход выполнен успешно!');
+            } else {
+                showError(data.error || 'Неверный email или пароль');
+            }
+        } catch (error) {
+            showError('Ошибка соединения с сервером');
+            console.error(error);
+        } finally {
+            button.disabled = false;
+            button.textContent = 'Войти';
+        }
+    }
+
+    // ===== ФУНКЦИЯ РЕГИСТРАЦИИ =====
+    async function register(event) {
+        event.preventDefault();
+
+        const username = document.getElementById('register-username').value.trim();
+        const email = document.getElementById('register-email').value.trim();
+        const device = document.getElementById('register-device').value.trim() || 'Unknown Device';
+        const password = document.getElementById('register-password').value;
+        const confirm = document.getElementById('register-confirm').value;
+
+        if (password !== confirm) {
+            showError('Пароли не совпадают');
+            return;
         }
 
-        function updateUsersList(users) {
-            onlineUsers = users.filter(u => u.online);
+        const button = document.getElementById('register-button');
+        button.disabled = true;
+        button.textContent = 'Регистрация...';
 
-            const usersListDiv = document.getElementById('users-list');
-            const usersCountSpan = document.getElementById('users-count');
-            const usersCountHeader = document.getElementById('users-count-header');
+        try {
+            const response = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, email, device, password })
+            });
 
-            if (!usersListDiv) return;
+            const data = await response.json();
 
-            if (usersCountSpan) {
-                usersCountSpan.innerText = onlineUsers.length;
+            if (response.ok) {
+                document.getElementById('register-form').classList.add('hidden');
+                document.getElementById('verification-screen').classList.remove('hidden');
+                document.getElementById('verification-email').textContent = email;
+                currentUser = { email: email };
+                startVerificationTimer();
+                showSuccess('Код подтверждения отправлен на email');
+            } else {
+                showError(data.error || 'Ошибка регистрации');
             }
-            if (usersCountHeader) {
-                usersCountHeader.innerText = onlineUsers.length;
+        } catch (error) {
+            showError('Ошибка соединения с сервером');
+            console.error(error);
+        } finally {
+            button.disabled = false;
+            button.textContent = 'Зарегистрироваться';
+        }
+    }
+
+    // ===== ФУНКЦИЯ ПОДКЛЮЧЕНИЯ К WEBSOCKET =====
+    function connectWebSocket(username) {
+        ws = new WebSocket(WS_URL + encodeURIComponent(username));
+
+        ws.onopen = function() {
+            connected = true;
+            document.getElementById('status').innerHTML = '🟢 Подключено';
+            document.getElementById('text').disabled = false;
+            document.getElementById('send-btn').disabled = false;
+            document.getElementById('file-btn').disabled = false;
+            addSystemMessage('✅ Подключился к чату');
+            document.getElementById('text').focus();
+
+            // Сбрасываем историю при новом подключении
+            historyOffset = 0;
+            hasMoreHistory = true;
+        };
+
+        ws.onmessage = function(event) {
+            if (typeof event.data === 'string') {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Получено:', data.type);
+
+                    if (data.type === 'message') {
+                        addMessage(data);
+                    }
+                    else if (data.type === 'users') {
+                        updateUsersList(data.users);
+                    }
+                    else if (data.type === 'typing') {
+                        handleTypingIndicator(data.sender, data.typing);
+                    }
+                    else if (data.type === 'history') {
+                        document.getElementById('messages').innerHTML = '';
+                        if (data.messages) {
+                            data.messages.forEach(m => addMessage(m));
+                        }
+                    }
+                    else if (data.type === 'upload_complete') {
+                        handleUploadComplete(data);
+                    }
+                } catch (e) {
+                    console.error('Ошибка парсинга:', e);
+                }
+            }
+        };
+
+        ws.onclose = function() {
+            connected = false;
+            document.getElementById('status').innerHTML = '🔴 Отключено';
+            document.getElementById('text').disabled = true;
+            document.getElementById('send-btn').disabled = true;
+            document.getElementById('file-btn').disabled = true;
+        };
+
+        ws.onerror = function(error) {
+            console.error('WebSocket ошибка:', error);
+            addSystemMessage('❌ Ошибка подключения');
+        };
+    }
+
+    // ===== ФУНКЦИЯ ОТПРАВКИ СООБЩЕНИЙ =====
+    function send() {
+        if (!connected) {
+            alert('Нет подключения к серверу');
+            return;
+        }
+
+        const textInput = document.getElementById('text');
+        const text = textInput.value.trim();
+
+        if (!text) return;
+
+        ws.send(JSON.stringify({
+            type: 'message',
+            text: text
+        }));
+
+        textInput.value = '';
+
+        clearTimeout(typingTimeout);
+        if (connected) {
+            ws.send(JSON.stringify({
+                type: 'typing',
+                typing: false
+            }));
+        }
+    }
+
+    // ===== ИСПРАВЛЕННЫЕ ФУНКЦИИ ДЛЯ ФАЙЛОВ =====
+    function selectFile() {
+        document.getElementById('file-input').click();
+    }
+
+    document.getElementById('file-input').onchange = function() {
+        if (!this.files || this.files.length === 0 || !connected) return;
+
+        for (let i = 0; i < this.files.length; i++) {
+            const file = this.files[i];
+
+            if (file.size > 100 * 1024 * 1024) {
+                alert(`Файл "${file.name}" слишком большой! Максимум 100 МБ`);
+                continue;
             }
 
-            usersListDiv.innerHTML = '';
-
-            onlineUsers.forEach(user => {
-                const userDiv = document.createElement('div');
-                userDiv.className = 'user-item' + (user.device === device ? ' current-user' : '');
-
-                let statusDot = '🟢';
-                let userName = user.device === device ? 'Я (' + user.device + ')' : user.device;
-
-                let typingHtml = typingUsers.has(user.device) ? '<span class="typing-indicator">печатает...</span>' : '';
-
-                userDiv.innerHTML = `
-                    <span class="user-status">${statusDot}</span>
-                    <span class="user-name">${userName}</span>
-                    ${typingHtml}
-                `;
-
-                usersListDiv.appendChild(userDiv);
+            fileQueue.push({
+                file: file,
+                name: file.name,
+                size: file.size,
+                type: file.type.startsWith('image/') ? 'image' :
+                      file.type.startsWith('video/') ? 'video' :
+                      file.type.startsWith('audio/') ? 'audio' : 'file',
+                status: 'pending'
             });
         }
 
-        function handleTypingIndicator(sender, isTyping) {
-            if (sender === device) return;
+        updateFileQueue();
 
-            if (isTyping) {
-                if (!typingUsers.has(sender)) {
-                    typingUsers.set(sender, setTimeout(() => {
-                        typingUsers.delete(sender);
-                        updateUsersList(onlineUsers);
-                    }, 3000));
-                }
-            } else {
-                if (typingUsers.has(sender)) {
-                    clearTimeout(typingUsers.get(sender));
-                    typingUsers.delete(sender);
-                }
-            }
-
-            updateUsersList(onlineUsers);
+        if (!isUploading) {
+            processNextFile();
         }
 
-        function loadMoreHistory() {
-            if (!connected || isLoadingHistory || !hasMoreHistory) return;
+        this.value = '';
+    };
 
-            isLoadingHistory = true;
-            historyOffset += historyLimit;
+    function updateFileQueue() {
+        const queueDiv = document.getElementById('file-queue');
 
-            const loadingDiv = document.createElement('div');
-            loadingDiv.id = 'history-loading';
-            loadingDiv.className = 'message system';
-            loadingDiv.innerText = '⏳ Загрузка истории...';
-            messagesDiv.insertBefore(loadingDiv, messagesDiv.firstChild);
+        if (fileQueue.length === 0) {
+            queueDiv.style.display = 'none';
+            return;
+        }
 
-            const url = `/api/history/${encodeURIComponent(device)}?offset=${historyOffset}&limit=${historyLimit}`;
+        queueDiv.style.display = 'block';
+        let html = '<strong>📋 Очередь файлов:</strong><br>';
 
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('history-loading')?.remove();
+        fileQueue.forEach((item, index) => {
+            let status = '';
+            if (index === currentFileIndex && isUploading) {
+                status = ' ⏳ Загружается...';
+            } else if (item.status === 'done') {
+                status = ' ✅';
+            } else if (item.status === 'error') {
+                status = ' ❌';
+            } else if (index < currentFileIndex) {
+                status = ' ✅';
+            } else if (index > currentFileIndex) {
+                status = ' ⏳ В очереди';
+            }
 
-                    let messages = data.messages || [];
+            html += `📁 ${item.name} (${formatFileSize(item.size)})${status}<br>`;
+        });
 
-                    if (messages.length > 0) {
-                        const oldScrollHeight = messagesDiv.scrollHeight;
-                        const oldScrollTop = messagesDiv.scrollTop;
+        queueDiv.innerHTML = html;
+    }
 
-                        messages.reverse().forEach(msg => {
-                            messageHistory.unshift(msg);
-                            addMessageToTop(msg);
-                        });
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+    }
 
-                        messagesDiv.scrollTop = messagesDiv.scrollHeight - oldScrollHeight + oldScrollTop;
-                    } else {
-                        hasMoreHistory = false;
+    function processNextFile() {
+        if (currentFileIndex >= fileQueue.length) {
+            isUploading = false;
+            fileQueue = [];
+            currentFileIndex = 0;
+            updateFileQueue();
+            return;
+        }
+
+        isUploading = true;
+        const queueItem = fileQueue[currentFileIndex];
+        queueItem.status = 'uploading';
+        updateFileQueue();
+
+        uploadFileWithChunks(queueItem);
+    }
+
+    // ИСПРАВЛЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ ФАЙЛА ЧАНКАМИ
+    function uploadFileWithChunks(queueItem) {
+        const file = queueItem.file;
+
+        // Отправляем метаданные файла
+        ws.send(JSON.stringify({
+            type: 'file_metadata',
+            fileName: file.name,
+            fileType: queueItem.type,
+            fileSize: file.size,
+            fileIndex: currentFileIndex,
+            totalFiles: fileQueue.length
+        }));
+
+        // Даем серверу время на создание сборщика
+        setTimeout(() => {
+            sendNextChunk(file, queueItem, 0);
+        }, 100);
+    }
+
+    function sendNextChunk(file, queueItem, offset) {
+        const chunkSize = CHUNK_SIZE;
+        const totalChunks = Math.ceil(file.size / chunkSize);
+        const chunkIndex = Math.floor(offset / chunkSize) + 1;
+
+        if (offset >= file.size) {
+            // Все чанки отправлены
+            return;
+        }
+
+        const chunk = file.slice(offset, Math.min(offset + chunkSize, file.size));
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            try {
+                // Отправляем чанк
+                ws.send(e.target.result);
+
+                const newOffset = offset + chunk.size;
+                const percent = Math.min(100, Math.round((newOffset / file.size) * 100));
+
+                // Обновляем прогресс
+                const progress = document.getElementById('file-progress');
+                progress.style.display = 'block';
+                progress.innerHTML = `📤 [${currentFileIndex + 1}/${fileQueue.length}] ${percent}% (${file.name}) [${chunkIndex}/${totalChunks}]`;
+
+                console.log(`📤 Отправлен чанк ${chunkIndex}/${totalChunks}, всего: ${newOffset}/${file.size}`);
+
+                if (newOffset < file.size) {
+                    // Отправляем следующий чанк
+                    setTimeout(() => {
+                        sendNextChunk(file, queueItem, newOffset);
+                    }, 30);
+                }
+
+            } catch (err) {
+                console.error('Ошибка отправки чанка:', err);
+                queueItem.status = 'error';
+                updateFileQueue();
+                const progress = document.getElementById('file-progress');
+                progress.innerHTML = `❌ Ошибка отправки ${file.name}`;
+            }
+        };
+
+        reader.onerror = function() {
+            console.error('Ошибка чтения файла');
+            queueItem.status = 'error';
+            updateFileQueue();
+        };
+
+        reader.readAsArrayBuffer(chunk);
+    }
+
+    // ИСПРАВЛЕННАЯ ФУНКЦИЯ ОБРАБОТКИ ЗАВЕРШЕНИЯ ЗАГРУЗКИ
+    function handleUploadComplete(data) {
+        const progress = document.getElementById('file-progress');
+
+        if (fileQueue[currentFileIndex]) {
+            fileQueue[currentFileIndex].status = 'done';
+
+            progress.innerHTML = `✅ Файл ${currentFileIndex + 1}/${fileQueue.length} загружен: ${data.fileName}`;
+
+            // Добавляем файл в кеш
+            cacheFile(data.fileId, data.fileName, data.fileType);
+
+            // Отправляем сообщение о файле в чат
+            ws.send(JSON.stringify({
+                type: 'message',
+                text: `📎 ${data.fileName}`,
+                fileId: data.fileId,
+                fileName: data.fileName,
+                fileType: data.fileType
+            }));
+
+            // Переходим к следующему файлу
+            setTimeout(() => {
+                if (currentFileIndex + 1 < fileQueue.length) {
+                    progress.innerHTML = '⏳ Подготовка следующего файла...';
+                    currentFileIndex++;
+                    processNextFile();
+                } else {
+                    progress.style.display = 'none';
+                    isUploading = false;
+                    fileQueue = [];
+                    currentFileIndex = 0;
+                    updateFileQueue();
+                }
+            }, 1000);
+        }
+    }
+
+    function moveToNextFile() {
+        if (currentFileIndex < fileQueue.length) {
+            fileQueue[currentFileIndex].status = 'done';
+        }
+        currentFileIndex++;
+        updateFileQueue();
+        processNextFile();
+    }
+
+    // ===== ФУНКЦИИ ДЛЯ КЕШИРОВАНИЯ ФАЙЛОВ =====
+    function cacheFile(fileId, fileName, fileType) {
+        if (!fileCache.has(fileId)) {
+            fileCache.set(fileId, {
+                id: fileId,
+                name: fileName,
+                type: fileType,
+                timestamp: Date.now()
+            });
+
+            // Сохраняем в localStorage (только метаданные, не сами файлы)
+            try {
+                const cacheList = JSON.parse(localStorage.getItem('fileCache') || '[]');
+                if (!cacheList.find(f => f.id === fileId)) {
+                    cacheList.push({
+                        id: fileId,
+                        name: fileName,
+                        type: fileType,
+                        timestamp: Date.now()
+                    });
+                    // Оставляем только последние 50 записей
+                    if (cacheList.length > 50) {
+                        cacheList.shift();
                     }
-
-                    isLoadingHistory = false;
-                })
-                .catch(error => {
-                    console.error('Ошибка загрузки истории:', error);
-                    document.getElementById('history-loading')?.remove();
-                    isLoadingHistory = false;
-                });
-        }
-
-        function addMessage(msg, scroll = true) {
-            const messagesDiv = document.getElementById('messages');
-            const div = createMessageElement(msg);
-            messagesDiv.appendChild(div);
-
-            if (scroll) {
-                div.scrollIntoView({behavior: 'smooth'});
+                    localStorage.setItem('fileCache', JSON.stringify(cacheList));
+                }
+            } catch (e) {
+                console.error('Ошибка сохранения в localStorage:', e);
             }
         }
+    }
 
-        function addMessageToTop(msg) {
-            const messagesDiv = document.getElementById('messages');
-            const div = createMessageElement(msg);
-            messagesDiv.insertBefore(div, messagesDiv.firstChild);
+    function getCachedFile(fileId) {
+        return fileCache.get(fileId);
+    }
+
+    // Загружаем кеш из localStorage при старте
+    try {
+        const cachedFiles = JSON.parse(localStorage.getItem('fileCache') || '[]');
+        cachedFiles.forEach(f => {
+            fileCache.set(f.id, f);
+        });
+        console.log(`📦 Загружено ${cachedFiles.length} записей из кеша`);
+    } catch (e) {
+        console.error('Ошибка загрузки кеша:', e);
+    }
+
+    // ===== ФУНКЦИИ ДЛЯ ИСТОРИИ (LAZY LOADING) =====
+    function loadMoreHistory() {
+        if (!connected || isLoadingHistory || !hasMoreHistory) return;
+
+        isLoadingHistory = true;
+        historyOffset += historyLimit;
+
+        // Показываем индикатор загрузки
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'history-loading';
+        loadingDiv.className = 'message system';
+        loadingDiv.innerText = '⏳ Загрузка истории...';
+        const messagesDiv = document.getElementById('messages');
+        messagesDiv.insertBefore(loadingDiv, messagesDiv.firstChild);
+
+        const url = `/api/history/${encodeURIComponent(currentUser?.username)}?offset=${historyOffset}&limit=${historyLimit}`;
+
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('history-loading')?.remove();
+
+                let messages = data.messages || [];
+
+                if (messages.length > 0) {
+                    const oldScrollHeight = messagesDiv.scrollHeight;
+                    const oldScrollTop = messagesDiv.scrollTop;
+
+                    // Добавляем сообщения в начало
+                    messages.reverse().forEach(msg => {
+                        messageHistory.unshift(msg);
+                        addMessageToTop(msg);
+                    });
+
+                    // Восстанавливаем позицию скролла
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight - oldScrollHeight + oldScrollTop;
+                } else {
+                    hasMoreHistory = false;
+                }
+
+                isLoadingHistory = false;
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки истории:', error);
+                document.getElementById('history-loading')?.remove();
+                isLoadingHistory = false;
+            });
+    }
+
+    function addMessageToTop(msg) {
+        const messagesDiv = document.getElementById('messages');
+        const div = createMessageElement(msg);
+        messagesDiv.insertBefore(div, messagesDiv.firstChild);
+    }
+
+    // ===== ФУНКЦИЯ ДОБАВЛЕНИЯ СООБЩЕНИЯ =====
+    function addMessage(msg) {
+        const messagesDiv = document.getElementById('messages');
+        const div = createMessageElement(msg);
+        messagesDiv.appendChild(div);
+        div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+        // Кешируем информацию о файле, если есть
+        if (msg.fileId) {
+            cacheFile(msg.fileId, msg.fileName, msg.fileType);
         }
+    }
 
-        function createMessageElement(msg) {
-            const div = document.createElement('div');
+    function createMessageElement(msg) {
+        const div = document.createElement('div');
 
-            if (msg.sender === 'system') {
-                div.className = 'message system';
-                div.innerText = msg.text;
-            } else {
-                div.className = 'message ' + (msg.sender === device ? 'my' : 'other');
+        let time = msg.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-                let content = '<b>' + (msg.sender === device ? 'Я' : msg.sender) + ':</b> ';
+        if (msg.sender === 'system') {
+            div.className = 'message system';
+            div.innerText = msg.text;
+        } else {
+            div.className = 'message ' + (msg.sender === currentUser?.username ? 'my' : 'other');
 
-                if (msg.fileId) {
-                    if (msg.fileType === 'image') {
-                        content += '<div><img src="/file/' + msg.fileId + '" class="media-preview" onclick="window.open(\'/file/' + msg.fileId + '\')"></div>';
-                    } else if (msg.fileType === 'video') {
-                        content += '<div><video src="/file/' + msg.fileId + '" controls style="max-width:200px; max-height:200px;"></video></div>';
-                    } else if (msg.fileType === 'audio') {
-                        content += '<div><audio src="/file/' + msg.fileId + '" controls></audio></div>';
-                    } else {
-                        content += '<div><a href="/file/' + msg.fileId + '" class="file-link" target="_blank"> ' + (msg.fileName || 'Файл') + '</a></div>';
-                    }
+            let content = '<b>' + (msg.sender === currentUser?.username ? 'Я' : msg.sender) + ':</b> ';
+
+            if (msg.fileId) {
+                // Проверяем, есть ли файл в кеше
+                const cached = getCachedFile(msg.fileId);
+
+                if (msg.fileType === 'image') {
+                    // Для изображений используем lazy loading
+                    content += `<div><img src="/file/${msg.fileId}" loading="lazy" class="media-preview" onclick="window.open('/file/${msg.fileId}')" alt="${msg.fileName || 'Изображение'}"></div>`;
+                } else if (msg.fileType === 'video') {
+                    content += `<div><video src="/file/${msg.fileId}" controls preload="metadata" style="max-width:200px; max-height:200px;"></video></div>`;
+                } else if (msg.fileType === 'audio') {
+                    content += `<div><audio src="/file/${msg.fileId}" controls preload="none"></audio></div>`;
+                } else {
+                    content += `<div><a href="/file/${msg.fileId}" class="file-link" target="_blank"> ${msg.fileName || 'Файл'}</a></div>`;
                 }
-
-                if (msg.text && !msg.text.startsWith('📎')) {
-                    content += msg.text;
-                }
-
-                if (msg.time) {
-                    content += ' <small>' + msg.time + '</small>';
-                }
-
-                div.innerHTML = content;
             }
 
-            return div;
+            if (msg.text && !msg.text.startsWith('📎')) {
+                content += msg.text;
+            }
+
+            content += ' <small>' + time + '</small>';
+            div.innerHTML = content;
         }
 
-        function scrollToBottom() {
-            const messagesDiv = document.getElementById('messages');
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
+        return div;
+    }
 
+    function addSystemMessage(text) {
+        const div = document.createElement('div');
+        div.className = 'message system';
+        div.innerText = text;
+        document.getElementById('messages').appendChild(div);
+        div.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ===== ОБРАБОТЧИК СКРОЛЛА ДЛЯ LAZY LOADING =====
+    const messagesDiv = document.getElementById('messages');
+    if (messagesDiv) {
         messagesDiv.addEventListener('scroll', function() {
             if (messagesDiv.scrollTop < 100 && !isLoadingHistory && hasMoreHistory && connected) {
                 loadMoreHistory();
             }
         });
+    }
 
-        function send() {
-            if (!connected) return;
-            const text = document.getElementById('text').value.trim();
-            if (!text) return;
+    // ===== ФУНКЦИИ ДЛЯ ПОЛЬЗОВАТЕЛЕЙ =====
+    function updateUsersList(users) {
+        onlineUsers = users.filter(u => u.online);
 
-            ws.send(JSON.stringify({
-                type: 'message',
-                text: text
-            }));
+        document.getElementById('users-count').innerText = onlineUsers.length;
+        document.getElementById('users-count-header').innerText = onlineUsers.length;
 
-            document.getElementById('text').value = '';
+        const usersListDiv = document.getElementById('users-list');
+        usersListDiv.innerHTML = '';
 
-            clearTimeout(typingTimeout);
+        onlineUsers.forEach(user => {
+            const userDiv = document.createElement('div');
+            userDiv.className = 'user-item' + (user.device === currentUser?.username ? ' current-user' : '');
+
+            let statusDot = '🟢';
+            let userName = user.device === currentUser?.username ? 'Я (' + user.device + ')' : user.device;
+
+            let typingHtml = typingUsers.has(user.device) ? '<span class="typing-indicator">печатает...</span>' : '';
+
+            userDiv.innerHTML = `
+                <span class="user-status">${statusDot}</span>
+                <span class="user-name">${userName}</span>
+                ${typingHtml}
+            `;
+
+            usersListDiv.appendChild(userDiv);
+        });
+    }
+
+    function handleTypingIndicator(sender, isTyping) {
+        if (sender === currentUser?.username) return;
+
+        if (isTyping) {
+            if (!typingUsers.has(sender)) {
+                typingUsers.set(sender, setTimeout(() => {
+                    typingUsers.delete(sender);
+                    updateUsersList(onlineUsers);
+                }, 3000));
+            }
+        } else {
+            if (typingUsers.has(sender)) {
+                clearTimeout(typingUsers.get(sender));
+                typingUsers.delete(sender);
+            }
+        }
+        updateUsersList(onlineUsers);
+    }
+
+    // ===== ИНДИКАТОР ПЕЧАТАНИЯ =====
+    document.getElementById('text')?.addEventListener('input', function() {
+        if (!connected) return;
+
+        ws.send(JSON.stringify({
+            type: 'typing',
+            typing: true
+        }));
+
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
             if (connected) {
                 ws.send(JSON.stringify({
                     type: 'typing',
                     typing: false
                 }));
             }
+        }, 2000);
+    });
+
+    // ===== ОТПРАВКА ПО ENTER =====
+    document.getElementById('text')?.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && connected) {
+            send();
         }
+    });
 
-        function selectFile() {
-            document.getElementById('file-input').click();
+    // ===== ВЫХОД =====
+    function logout() {
+        if (ws) ws.close();
+        currentUser = null;
+        connected = false;
+        document.getElementById('chat').classList.add('hidden');
+        document.getElementById('auth-screen').classList.remove('hidden');
+        switchAuthTab('login');
+
+        // Очищаем сообщения
+        document.getElementById('messages').innerHTML = '';
+
+        // Сбрасываем историю
+        messageHistory = [];
+        historyOffset = 0;
+        hasMoreHistory = true;
+    }
+
+    // ===== ЗАГЛУШКИ =====
+    function verifyEmail() {
+        const code = document.getElementById('verification-code')?.value;
+        if (!code) {
+            showError('Введите код подтверждения');
+            return;
         }
+        // Здесь логика подтверждения email
+        showSuccess('Email подтвержден!');
+    }
 
-        document.getElementById('file-input').onchange = function() {
-            if (!this.files || this.files.length === 0 || !connected) return;
+    function resendCode() {
+        showSuccess('Код отправлен повторно');
+        startVerificationTimer();
+    }
 
-            for (let i = 0; i < this.files.length; i++) {
-                const file = this.files[i];
+    function forgotPassword() {
+        alert('Функция восстановления пароля будет доступна позже');
+    }
 
-                if (file.size > 100 * 1024 * 1024) {
-                    alert(`Файл "${file.name}" слишком большой! Максимум 100 МБ`);
-                    continue;
-                }
-
-                fileQueue.push({
-                    file: file,
-                    name: file.name,
-                    size: file.size,
-                    type: file.type.startsWith('image/') ? 'image' :
-                          file.type.startsWith('video/') ? 'video' :
-                          file.type.startsWith('audio/') ? 'audio' : 'file',
-                    status: 'pending'
-                });
+    function startVerificationTimer() {
+        let timeLeft = 120;
+        const timerEl = document.getElementById('timer');
+        const interval = setInterval(() => {
+            timeLeft--;
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerEl.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            if (timeLeft <= 0) {
+                clearInterval(interval);
             }
-
-            updateFileQueue();
-
-            if (!isUploading) {
-                processNextFile();
-            }
-
-            this.value = '';
-        };
-
-        function updateFileQueue() {
-            const queueDiv = document.getElementById('file-queue');
-
-            if (fileQueue.length === 0) {
-                queueDiv.style.display = 'none';
-                return;
-            }
-
-            queueDiv.style.display = 'block';
-            let html = '<strong>📋 Очередь файлов:</strong><br>';
-
-            fileQueue.forEach((item, index) => {
-                let status = '';
-                if (index === currentFileIndex && isUploading) {
-                    status = ' ⏳ Загружается...';
-                } else if (item.status === 'done') {
-                    status = ' ✅';
-                } else if (item.status === 'error') {
-                    status = ' ❌';
-                } else if (index < currentFileIndex) {
-                    status = ' ⏳ В очереди';
-                }
-
-                html += `📁 ${item.name} (${formatFileSize(item.size)})${status}<br>`;
-            });
-
-            queueDiv.innerHTML = html;
-        }
-
-        function formatFileSize(bytes) {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-            return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
-        }
-
-        function processNextFile() {
-            if (currentFileIndex >= fileQueue.length) {
-                isUploading = false;
-                fileQueue = [];
-                currentFileIndex = 0;
-                updateFileQueue();
-                return;
-            }
-
-            isUploading = true;
-            const queueItem = fileQueue[currentFileIndex];
-            queueItem.status = 'uploading';
-            updateFileQueue();
-
-            uploadFile(queueItem);
-        }
-
-        function uploadFile(queueItem) {
-            const file = queueItem.file;
-
-            ws.send(JSON.stringify({
-                type: 'file_metadata',
-                fileName: file.name,
-                fileType: queueItem.type,
-                fileSize: file.size,
-                fileIndex: currentFileIndex,
-                totalFiles: fileQueue.length
-            }));
-
-            const chunkSize = 64 * 1024;
-            let offset = 0;
-            let chunkIndex = 0;
-            const totalChunks = Math.ceil(file.size / chunkSize);
-
-            const progress = document.getElementById('file-progress');
-            progress.style.display = 'block';
-            progress.innerHTML = `📤 [${currentFileIndex + 1}/${fileQueue.length}] 0% (${file.name}) [0/${totalChunks}]`;
-
-            function sendNextChunk() {
-                const chunk = file.slice(offset, offset + chunkSize);
-                const reader = new FileReader();
-
-                reader.onload = function(e) {
-                    try {
-                        ws.send(e.target.result);
-
-                        offset += chunkSize;
-                        chunkIndex++;
-                        let percent = Math.min(100, Math.round((offset / file.size) * 100));
-
-                        progress.innerHTML = `📤 [${currentFileIndex + 1}/${fileQueue.length}] ${percent}% (${file.name}) [${chunkIndex}/${totalChunks}]`;
-
-                        if (offset < file.size) {
-                            setTimeout(sendNextChunk, 30);
-                        } else {
-                            progress.innerHTML = `✅ [${currentFileIndex + 1}/${fileQueue.length}] 100% (${file.name}) - ожидание...`;
-                        }
-                    } catch (err) {
-                        console.error('Ошибка отправки чанка:', err);
-                        queueItem.status = 'error';
-                        progress.innerHTML = `❌ Ошибка отправки ${file.name}`;
-                        setTimeout(() => {
-                            progress.style.display = 'none';
-                            moveToNextFile();
-                        }, 3000);
-                    }
-                };
-
-                reader.onerror = function() {
-                    queueItem.status = 'error';
-                    progress.innerHTML = `❌ Ошибка чтения ${file.name}`;
-                    setTimeout(() => {
-                        progress.style.display = 'none';
-                        moveToNextFile();
-                    }, 3000);
-                };
-
-                reader.readAsArrayBuffer(chunk);
-            }
-
-            sendNextChunk();
-        }
-
-        function moveToNextFile() {
-            fileQueue[currentFileIndex].status = 'done';
-            currentFileIndex++;
-            updateFileQueue();
-            processNextFile();
-        }
-
-        function addSystemMessage(text) {
-            const div = document.createElement('div');
-            div.className = 'message system';
-            div.innerText = text;
-            document.getElementById('messages').appendChild(div);
-            div.scrollIntoView({behavior: 'smooth'});
-        }
-
-        document.getElementById('text').addEventListener('input', function() {
-            if (!connected) return;
-
-            ws.send(JSON.stringify({
-                type: 'typing',
-                typing: true
-            }));
-
-            clearTimeout(typingTimeout);
-
-            typingTimeout = setTimeout(() => {
-                if (connected) {
-                    ws.send(JSON.stringify({
-                        type: 'typing',
-                        typing: false
-                    }));
-                }
-            }, 2000);
-        });
-
-        document.getElementById('text').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && connected) {
-                send();
-            }
-        });
-    </script>
+        }, 1000);
+    }
+</script>
 </body>
 </html>
