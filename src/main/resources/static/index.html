@@ -910,6 +910,183 @@
             button.textContent = 'Войти';
         }
     }
+    // ===== ФУНКЦИИ ПОДТВЕРЖДЕНИЯ EMAIL =====
+    let verificationTimer = null;
+    let currentUser = null;
+
+    function startVerificationTimer() {
+        // Таймер на 10 минут
+        let timeLeft = 600; // 10 минут в секундах
+        const timerElement = document.getElementById('verification-timer');
+
+        if (verificationTimer) clearInterval(verificationTimer);
+
+        verificationTimer = setInterval(() => {
+            if (timeLeft <= 0) {
+                clearInterval(verificationTimer);
+                timerElement.textContent = '00:00';
+                document.getElementById('resend-code-btn').disabled = false;
+            } else {
+                timeLeft--;
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }, 1000);
+    }
+
+    async function verifyCode() {
+        const email = currentUser?.email || document.getElementById('verification-email')?.textContent;
+        const codeInput = document.getElementById('verification-code');
+        const code = codeInput?.value.trim();
+
+        if (!code) {
+            showError('Введите код подтверждения');
+            return;
+        }
+
+        if (!email) {
+            showError('Email не найден');
+            return;
+        }
+
+        console.log('Подтверждение email:', email, 'код:', code);
+
+        const button = document.getElementById('verify-button');
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Проверка...';
+        }
+
+        try {
+            const response = await fetch('/api/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, code })
+            });
+
+            const data = await response.json();
+            console.log('Ответ verify:', data);
+
+            if (response.ok && data.status === 'success') {
+                // Успешное подтверждение
+                showSuccess('✅ Email успешно подтвержден!');
+
+                // Очищаем таймер
+                if (verificationTimer) clearInterval(verificationTimer);
+
+                // Скрываем экран верификации
+                document.getElementById('verification-screen').classList.add('hidden');
+
+                // Показываем форму входа и заполняем email
+                document.getElementById('login-form').classList.remove('hidden');
+                document.getElementById('login-email').value = email;
+
+                // Очищаем поле кода
+                if (codeInput) codeInput.value = '';
+
+            } else {
+                showError(data.error || 'Ошибка подтверждения. Неверный код.');
+            }
+        } catch (error) {
+            console.error('Ошибка verify:', error);
+            showError('Ошибка соединения с сервером');
+        } finally {
+            if (button) {
+                button.disabled = false;
+                button.textContent = 'Подтвердить';
+            }
+        }
+    }
+
+    async function resendCode() {
+        const email = currentUser?.email || document.getElementById('verification-email')?.textContent;
+
+        if (!email) {
+            showError('Email не найден');
+            return;
+        }
+
+        console.log('Повторная отправка кода для:', email);
+
+        const button = document.getElementById('resend-code-btn');
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Отправка...';
+        }
+
+        try {
+            const response = await fetch('/api/resend-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.status === 'success') {
+                showSuccess('✅ Новый код отправлен на email');
+
+                // Перезапускаем таймер
+                if (verificationTimer) clearInterval(verificationTimer);
+                startVerificationTimer();
+
+                // Блокируем кнопку повторной отправки на 60 секунд
+                setTimeout(() => {
+                    if (button) button.disabled = false;
+                }, 60000);
+            } else {
+                showError(data.error || 'Ошибка отправки кода');
+                if (button) button.disabled = false;
+            }
+        } catch (error) {
+            console.error('Ошибка resend:', error);
+            showError('Ошибка соединения с сервером');
+            if (button) button.disabled = false;
+        }
+    }
+
+
+    // ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+    function showSuccess(message) {
+        // Создаем временное уведомление об успехе
+        const notification = document.createElement('div');
+        notification.className = 'success-notification';
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 5px;
+            z-index: 10000;
+            animation: fadeOut 3s forwards;
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+    }
+
+    function showError(message) {
+        // Создаем временное уведомление об ошибке
+        const notification = document.createElement('div');
+        notification.className = 'error-notification';
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 5px;
+            z-index: 10000;
+            animation: fadeOut 3s forwards;
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+    }
 
     // ===== ФУНКЦИЯ РЕГИСТРАЦИИ =====
     async function register(event) {
