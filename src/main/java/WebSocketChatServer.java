@@ -45,7 +45,7 @@ public class WebSocketChatServer {
         properties.put("org.glassfish.tyrus.incomingBufferSize", 20 * 1024 * 1024);
         properties.put("org.glassfish.tyrus.maxSessionMessageSize", 20 * 1024 * 1024);
 
-        Server server = new Server("localhost", 8080, "/ws", properties, ChatEndpoint.class);
+        Server server = new Server("0.0.0.0", 8080, "/ws", properties, ChatEndpoint.class);
 
         try {
             server.start();
@@ -99,11 +99,41 @@ public class WebSocketChatServer {
             e.printStackTrace();
         }
     }
-
-    private static void startFileServer() {
+private static void startFileServer() {
+    try {
+        Files.createDirectories(Paths.get(UPLOAD_DIR));
+        System.out.println("📁 Директория uploads создана/проверена");
+        
+        HttpServer fileServer = HttpServer.create(new InetSocketAddress("0.0.0.0", 8081), 0);
+        fileServer.createContext("/upload", new FileUploadHandler());
+        fileServer.createContext("/file/", new FileDownloadHandler(false));
+        fileServer.createContext("/download/", new FileDownloadHandler(true));
+        
+        // Добавим тестовый endpoint для проверки
+        fileServer.createContext("/test", new HttpHandler() {
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                String response = "Файловый сервер работает!";
+                exchange.sendResponseHeaders(200, response.length());
+                exchange.getResponseBody().write(response.getBytes());
+                exchange.close();
+            }
+        });
+        
+        fileServer.setExecutor(Executors.newCachedThreadPool());
+        fileServer.start();
+        System.out.println("✅ Файловый сервер запущен на порту 8081 (0.0.0.0)");
+        System.out.println("   Тестовый URL: http://188.92.28.209:8081/test");
+        
+    } catch (Exception e) {
+        System.err.println("❌ Ошибка запуска файлового сервера: " + e.getMessage());
+        e.printStackTrace();
+    }
+}
+    private static void startFileServeer() {
         try {
             Files.createDirectories(Paths.get(UPLOAD_DIR));
-            HttpServer fileServer = HttpServer.create(new InetSocketAddress(8081), 0);
+            HttpServer fileServer = HttpServer.create(new InetSocketAddress("0.0.0.", 8081), 0);
             fileServer.createContext("/upload", new FileUploadHandler());
             fileServer.createContext("/file/", new FileDownloadHandler(false));
             fileServer.createContext("/download/", new FileDownloadHandler(true));
@@ -117,7 +147,7 @@ public class WebSocketChatServer {
 
     private static void startHistoryServer() {
         try {
-            HttpServer historyServer = HttpServer.create(new InetSocketAddress(8082), 0);
+            HttpServer historyServer = HttpServer.create(new InetSocketAddress("0.0.0.0", 8082), 0);
             historyServer.createContext("/api/history/", new LazyHistoryHandler());
             historyServer.setExecutor(Executors.newCachedThreadPool());
             historyServer.start();

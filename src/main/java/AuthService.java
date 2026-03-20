@@ -28,8 +28,8 @@ public class AuthService {
     // Конфигурация почты
     private static final String SMTP_HOST = "smtp.gmail.com";
     private static final String SMTP_PORT = "587";
-    private static final String SMTP_USERNAME = "avey8431@gmail.com"; // Замените на свой email
-    private static final String SMTP_PASSWORD = "fggx drdh wnvy frfm"; // Замените на пароль приложения
+    private static final String SMTP_USERNAME = "avey8431@gmail.com";
+    private static final String SMTP_PASSWORD = "fggx drdh wnvy frfm";
 
     static class VerificationCode {
         String code;
@@ -46,55 +46,79 @@ public class AuthService {
     }
 
     public static void startAuthServer() throws IOException {
-        HttpServer authServer = HttpServer.create(new InetSocketAddress(8083), 0);
-
+        HttpServer authServer = HttpServer.create(new InetSocketAddress("0.0.0.0", 8083), 0);
+        
         authServer.createContext("/api/register", new RegisterHandler());
         authServer.createContext("/api/login", new LoginHandler());
         authServer.createContext("/api/verify", new VerifyHandler());
         authServer.createContext("/api/resend-code", new ResendCodeHandler());
-
+        
         authServer.setExecutor(Executors.newCachedThreadPool());
         authServer.start();
-
+        
+        System.out.println("============================================================");
         System.out.println("🔐 Auth сервер запущен на порту 8083");
+        System.out.println("============================================================");
         initAuthDatabase();
     }
 
     private static void initAuthDatabase() {
-        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:auth.db")) {
-            Statement stmt = conn.createStatement();
-
-            // Таблица пользователей
-            stmt.execute("CREATE TABLE IF NOT EXISTS users (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                "username TEXT NOT NULL, " +
-                "email TEXT UNIQUE NOT NULL, " +
-                "password_hash TEXT NOT NULL, " +
-                "salt TEXT NOT NULL, " +
-                "device_name TEXT, " +
-                "verified BOOLEAN DEFAULT 0, " +
-                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
-                "last_login TIMESTAMP)");
-
-            System.out.println("📊 Auth база данных готова");
+        try {
+            String dbPath = new File("auth.db").getAbsolutePath();
+            System.out.println("📂 Путь к базе данных: " + dbPath);
+            
+            try (Connection conn = DriverManager.getConnection("jdbc:sqlite:auth.db")) {
+                Statement stmt = conn.createStatement();
+                
+                stmt.execute("CREATE TABLE IF NOT EXISTS users (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "username TEXT NOT NULL, " +
+                    "email TEXT UNIQUE NOT NULL, " +
+                    "password_hash TEXT NOT NULL, " +
+                    "salt TEXT NOT NULL, " +
+                    "device_name TEXT, " +
+                    "verified BOOLEAN DEFAULT 0, " +
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                    "last_login TIMESTAMP)");
+                
+                System.out.println("✅ Auth база данных готова");
+                
+                // Проверяем существующих пользователей
+                ResultSet rs = stmt.executeQuery("SELECT email, verified FROM users");
+                while (rs.next()) {
+                    System.out.println("📊 Пользователь: " + rs.getString("email") + 
+                                     ", verified: " + rs.getBoolean("verified"));
+                }
+            }
         } catch (SQLException e) {
+            System.err.println("❌ Ошибка базы данных: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    // Хэширование пароля
+    private static String readRequestBody(InputStream inputStream) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line);
+            }
+        }
+        return sb.toString();
+    }
+
     private static String[] hashPassword(String password) {
         byte[] salt = new byte[16];
         random.nextBytes(salt);
-
+        
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             md.update(salt);
             byte[] hash = md.digest(password.getBytes(StandardCharsets.UTF_8));
-
+            
             String saltStr = Base64.getEncoder().encodeToString(salt);
             String hashStr = Base64.getEncoder().encodeToString(hash);
-
+            
             return new String[]{hashStr, saltStr};
         } catch (Exception e) {
             e.printStackTrace();
@@ -105,12 +129,11 @@ public class AuthService {
     private static boolean verifyPassword(String password, String hash, String saltStr) {
         try {
             byte[] salt = Base64.getDecoder().decode(saltStr);
-
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             md.update(salt);
             byte[] hashBytes = md.digest(password.getBytes(StandardCharsets.UTF_8));
             String computedHash = Base64.getEncoder().encodeToString(hashBytes);
-
+            
             return computedHash.equals(hash);
         } catch (Exception e) {
             e.printStackTrace();
@@ -118,29 +141,28 @@ public class AuthService {
         }
     }
 
-    // Отправка email с кодом подтверждения
     private static boolean sendVerificationEmail(String to, String code) {
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.starttls.enable", "true");
         props.put("mail.smtp.host", SMTP_HOST);
         props.put("mail.smtp.port", SMTP_PORT);
-
+        
         Session session = Session.getInstance(props, new Authenticator() {
             @Override
             protected PasswordAuthentication getPasswordAuthentication() {
                 return new PasswordAuthentication(SMTP_USERNAME, SMTP_PASSWORD);
             }
         });
-
-        session.setDebug(true); // Покажет весь SMTP-диалог в консоли
-
+        
+        session.setDebug(true);
+        
         try {
             Message message = new MimeMessage(session);
             message.setFrom(new InternetAddress(SMTP_USERNAME));
             message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
             message.setSubject("Подтверждение регистрации в чате");
-
+            
             String htmlContent = String.format(
                 "<!DOCTYPE html>" +
                 "<html>" +
@@ -155,13 +177,12 @@ public class AuthService {
                 "<p style='font-size: 14px; color: #666;'>Код действителен в течение 10 минут.</p>" +
                 "<p style='font-size: 14px; color: #666;'>Если вы не регистрировались в чате, просто проигнорируйте это письмо.</p>" +
                 "</div></body></html>", code);
-
+            
             message.setContent(htmlContent, "text/html; charset=utf-8");
-
             Transport.send(message);
-            System.out.println("📧 Email отправлен на " + to);
+            System.out.println("✅ Email отправлен на " + to + " с кодом: " + code);
             return true;
-
+            
         } catch (MessagingException e) {
             System.err.println("❌ Ошибка отправки email: " + e.getMessage());
             e.printStackTrace();
@@ -173,321 +194,410 @@ public class AuthService {
         return String.format("%06d", random.nextInt(1000000));
     }
 
-    // Обработчик регистрации
     static class RegisterHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            // CORS headers
             exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
             exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
             exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
-
+            
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
                 exchange.sendResponseHeaders(204, -1);
                 exchange.close();
                 return;
             }
+            
             if (!"POST".equals(exchange.getRequestMethod())) {
                 exchange.sendResponseHeaders(405, -1);
                 exchange.close();
                 return;
             }
-
+            
             try {
-                // Читаем тело запроса
-                InputStreamReader isr = new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8);
-                BufferedReader br = new BufferedReader(isr);
-                StringBuilder requestBody = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) {
-                    requestBody.append(line);
-                }
-
-                Map<String, String> data = gson.fromJson(requestBody.toString(), Map.class);
+                String requestBody = readRequestBody(exchange.getRequestBody());
+                System.out.println("📝 Регистрация: " + requestBody);
+                
+                Map<String, String> data = gson.fromJson(requestBody, Map.class);
                 String username = data.get("username");
                 String email = data.get("email");
                 String device = data.get("device");
                 String password = data.get("password");
-
-                // Проверяем, существует ли пользователь
+                
+                // Проверяем существование пользователя
                 try (Connection conn = DriverManager.getConnection("jdbc:sqlite:auth.db")) {
                     PreparedStatement checkStmt = conn.prepareStatement(
                         "SELECT email FROM users WHERE email = ?");
                     checkStmt.setString(1, email);
                     ResultSet rs = checkStmt.executeQuery();
-
+                    
                     if (rs.next()) {
-                        sendJsonResponse(exchange, 400, Map.of("error", "Email уже зарегистрирован"));
+                        Map<String, String> error = new HashMap<>();
+                        error.put("error", "Email уже зарегистрирован");
+                        sendJsonResponse(exchange, 400, error);
                         return;
                     }
                 }
-
-                // Хэшируем пароль
+                
                 String[] hashAndSalt = hashPassword(password);
-
+                
                 // Сохраняем пользователя
                 try (Connection conn = DriverManager.getConnection("jdbc:sqlite:auth.db")) {
                     PreparedStatement pstmt = conn.prepareStatement(
                         "INSERT INTO users (username, email, password_hash, salt, device_name, verified) " +
                         "VALUES (?, ?, ?, ?, ?, ?)");
-
                     pstmt.setString(1, username);
                     pstmt.setString(2, email);
                     pstmt.setString(3, hashAndSalt[0]);
                     pstmt.setString(4, hashAndSalt[1]);
                     pstmt.setString(5, device);
                     pstmt.setBoolean(6, false);
-
                     pstmt.executeUpdate();
+                    
+                    System.out.println("✅ Пользователь создан: " + email);
                 }
-
-                // Генерируем и отправляем код подтверждения
+                
                 String code = generateVerificationCode();
                 verificationCodes.put(email, new VerificationCode(code));
-
+                System.out.println("📧 Код для " + email + ": " + code);
+                
                 if (sendVerificationEmail(email, code)) {
-                    sendJsonResponse(exchange, 200, Map.of(
-                        "status", "success",
-                        "message", "Код подтверждения отправлен на email"
-                    ));
+                    Map<String, String> response = new HashMap<>();
+                    response.put("status", "success");
+                    response.put("message", "Код подтверждения отправлен на email");
+                    sendJsonResponse(exchange, 200, response);
                 } else {
-                    sendJsonResponse(exchange, 500, Map.of(
-                        "error", "Ошибка отправки email"
-                    ));
+                    Map<String, String> error = new HashMap<>();
+                    error.put("error", "Ошибка отправки email");
+                    sendJsonResponse(exchange, 500, error);
                 }
-
+                
             } catch (Exception e) {
                 e.printStackTrace();
-                sendJsonResponse(exchange, 500, Map.of("error", e.getMessage()));
+                Map<String, String> error = new HashMap<>();
+                error.put("error", e.getMessage());
+                sendJsonResponse(exchange, 500, error);
             } finally {
                 exchange.close();
             }
         }
     }
 
-    // Обработчик подтверждения email
     static class VerifyHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            // CORS headers
             exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
             exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
             exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
-
+            
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
                 exchange.sendResponseHeaders(204, -1);
                 exchange.close();
                 return;
             }
+            
             if (!"POST".equals(exchange.getRequestMethod())) {
                 exchange.sendResponseHeaders(405, -1);
                 exchange.close();
                 return;
             }
-
+            
             try {
-                InputStreamReader isr = new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8);
-                BufferedReader br = new BufferedReader(isr);
-                StringBuilder requestBody = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) {
-                    requestBody.append(line);
-                }
-
-                Map<String, String> data = gson.fromJson(requestBody.toString(), Map.class);
+                String requestBody = readRequestBody(exchange.getRequestBody());
+                System.out.println("========== VERIFY REQUEST ==========");
+                System.out.println("Body: " + requestBody);
+                
+                Map<String, String> data = gson.fromJson(requestBody, Map.class);
                 String email = data.get("email");
                 String code = data.get("code");
-
+                
+                System.out.println("Email: " + email);
+                System.out.println("Code: " + code);
+                
+                // Проверяем код
                 VerificationCode savedCode = verificationCodes.get(email);
-
-                if (savedCode == null || !savedCode.isValid()) {
-                    sendJsonResponse(exchange, 400, Map.of("error", "Код недействителен или истек"));
+                
+                if (savedCode == null) {
+                    System.out.println("❌ Код не найден");
+                    Map<String, String> error = new HashMap<>();
+                    error.put("error", "Код не найден. Запросите новый код");
+                    sendJsonResponse(exchange, 400, error);
                     return;
                 }
-
+                
+                if (!savedCode.isValid()) {
+                    System.out.println("❌ Код истек");
+                    verificationCodes.remove(email);
+                    Map<String, String> error = new HashMap<>();
+                    error.put("error", "Код истек. Запросите новый код");
+                    sendJsonResponse(exchange, 400, error);
+                    return;
+                }
+                
                 if (!savedCode.code.equals(code)) {
-                    sendJsonResponse(exchange, 400, Map.of("error", "Неверный код"));
+                    System.out.println("❌ Неверный код. Ожидался: " + savedCode.code);
+                    Map<String, String> error = new HashMap<>();
+                    error.put("error", "Неверный код");
+                    sendJsonResponse(exchange, 400, error);
                     return;
                 }
-
-                // Подтверждаем пользователя
+                
+                // ОБНОВЛЯЕМ verified В БАЗЕ ДАННЫХ
                 try (Connection conn = DriverManager.getConnection("jdbc:sqlite:auth.db")) {
-                    PreparedStatement pstmt = conn.prepareStatement(
+                    // Сначала проверяем, существует ли пользователь
+                    PreparedStatement checkStmt = conn.prepareStatement(
+                        "SELECT email FROM users WHERE email = ?");
+                    checkStmt.setString(1, email);
+                    ResultSet rs = checkStmt.executeQuery();
+                    
+                    if (!rs.next()) {
+                        System.out.println("❌ Пользователь не найден: " + email);
+                        Map<String, String> error = new HashMap<>();
+                        error.put("error", "Пользователь не найден");
+                        sendJsonResponse(exchange, 404, error);
+                        return;
+                    }
+                    
+                    // Обновляем verified = 1
+                    PreparedStatement updateStmt = conn.prepareStatement(
                         "UPDATE users SET verified = 1 WHERE email = ?");
-                    pstmt.setString(1, email);
-                    pstmt.executeUpdate();
-
+                    updateStmt.setString(1, email);
+                    int rowsUpdated = updateStmt.executeUpdate();
+                    
+                    System.out.println("✅ Обновлено записей: " + rowsUpdated);
+                    
+                    if (rowsUpdated == 0) {
+                        System.out.println("⚠️ Не удалось обновить verified");
+                        Map<String, String> error = new HashMap<>();
+                        error.put("error", "Не удалось подтвердить email");
+                        sendJsonResponse(exchange, 500, error);
+                        return;
+                    }
+                    
+                    // Проверяем, что обновилось
+                    PreparedStatement verifyStmt = conn.prepareStatement(
+                        "SELECT verified FROM users WHERE email = ?");
+                    verifyStmt.setString(1, email);
+                    ResultSet verifyRs = verifyStmt.executeQuery();
+                    if (verifyRs.next()) {
+                        System.out.println("📊 Новый статус verified: " + verifyRs.getBoolean("verified"));
+                    }
+                    
                     // Получаем данные пользователя
-                    pstmt = conn.prepareStatement(
+                    PreparedStatement selectStmt = conn.prepareStatement(
                         "SELECT username, email, device_name FROM users WHERE email = ?");
-                    pstmt.setString(1, email);
-                    ResultSet rs = pstmt.executeQuery();
-
-                    if (rs.next()) {
+                    selectStmt.setString(1, email);
+                    ResultSet userRs = selectStmt.executeQuery();
+                    
+                    if (userRs.next()) {
                         Map<String, Object> userData = new HashMap<>();
-                        userData.put("username", rs.getString("username"));
-                        userData.put("email", rs.getString("email"));
-                        userData.put("device", rs.getString("device_name"));
-
+                        userData.put("username", userRs.getString("username"));
+                        userData.put("email", userRs.getString("email"));
+                        userData.put("device", userRs.getString("device_name"));
+                        
                         Map<String, Object> response = new HashMap<>();
                         response.put("status", "success");
                         response.put("user", userData);
-
+                        
+                        System.out.println("✅ Успешное подтверждение для: " + email);
                         sendJsonResponse(exchange, 200, response);
+                    } else {
+                        Map<String, String> error = new HashMap<>();
+                        error.put("error", "Ошибка получения данных");
+                        sendJsonResponse(exchange, 500, error);
                     }
                 }
-
+                
+                // Удаляем использованный код
                 verificationCodes.remove(email);
-
+                
             } catch (Exception e) {
+                System.err.println("❌ Ошибка в verify: " + e.getMessage());
                 e.printStackTrace();
-                sendJsonResponse(exchange, 500, Map.of("error", e.getMessage()));
+                Map<String, String> error = new HashMap<>();
+                error.put("error", e.getMessage());
+                sendJsonResponse(exchange, 500, error);
             } finally {
                 exchange.close();
             }
         }
     }
 
-    // Обработчик входа
     static class LoginHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            // CORS headers
             exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
             exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
             exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
-
+            
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
                 exchange.sendResponseHeaders(204, -1);
                 exchange.close();
                 return;
             }
+            
             if (!"POST".equals(exchange.getRequestMethod())) {
                 exchange.sendResponseHeaders(405, -1);
                 exchange.close();
                 return;
             }
-
+            
             try {
-                InputStreamReader isr = new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8);
-                BufferedReader br = new BufferedReader(isr);
-                StringBuilder requestBody = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) {
-                    requestBody.append(line);
-                }
-
-                Map<String, String> data = gson.fromJson(requestBody.toString(), Map.class);
+                String requestBody = readRequestBody(exchange.getRequestBody());
+                System.out.println("📝 Login запрос: " + requestBody);
+                
+                Map<String, String> data = gson.fromJson(requestBody, Map.class);
                 String email = data.get("email");
                 String password = data.get("password");
-
+                
+                System.out.println("🔑 Попытка входа для: " + email);
+                
                 try (Connection conn = DriverManager.getConnection("jdbc:sqlite:auth.db")) {
                     PreparedStatement pstmt = conn.prepareStatement(
                         "SELECT * FROM users WHERE email = ?");
                     pstmt.setString(1, email);
                     ResultSet rs = pstmt.executeQuery();
-
+                    
                     if (!rs.next()) {
-                        sendJsonResponse(exchange, 401, Map.of("error", "Неверный email или пароль"));
+                        Map<String, String> error = new HashMap<>();
+                        error.put("error", "Неверный email или пароль");
+                        sendJsonResponse(exchange, 401, error);
                         return;
                     }
-
-                    if (!rs.getBoolean("verified")) {
-                        sendJsonResponse(exchange, 401, Map.of("error", "Email не подтвержден"));
+                    
+                    boolean verified = rs.getBoolean("verified");
+                    System.out.println("📊 Статус verified: " + verified);
+                    
+                    if (!verified) {
+                        Map<String, String> error = new HashMap<>();
+                        error.put("error", "Email не подтвержден. Проверьте почту и введите код подтверждения");
+                        sendJsonResponse(exchange, 401, error);
                         return;
                     }
-
+                    
                     String hash = rs.getString("password_hash");
                     String salt = rs.getString("salt");
-
+                    
                     if (!verifyPassword(password, hash, salt)) {
-                        sendJsonResponse(exchange, 401, Map.of("error", "Неверный email или пароль"));
+                        Map<String, String> error = new HashMap<>();
+                        error.put("error", "Неверный email или пароль");
+                        sendJsonResponse(exchange, 401, error);
                         return;
                     }
-
+                    
                     // Обновляем last_login
                     PreparedStatement updateStmt = conn.prepareStatement(
                         "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE email = ?");
                     updateStmt.setString(1, email);
                     updateStmt.executeUpdate();
-
+                    
                     Map<String, Object> userData = new HashMap<>();
                     userData.put("username", rs.getString("username"));
                     userData.put("email", rs.getString("email"));
                     userData.put("device", rs.getString("device_name"));
-
+                    
                     Map<String, Object> response = new HashMap<>();
                     response.put("status", "success");
                     response.put("user", userData);
-
+                    
+                    System.out.println("✅ Успешный вход для: " + email);
                     sendJsonResponse(exchange, 200, response);
                 }
-
+                
             } catch (Exception e) {
                 e.printStackTrace();
-                sendJsonResponse(exchange, 500, Map.of("error", e.getMessage()));
+                Map<String, String> error = new HashMap<>();
+                error.put("error", e.getMessage());
+                sendJsonResponse(exchange, 500, error);
             } finally {
                 exchange.close();
             }
         }
     }
 
-    // Повторная отправка кода
     static class ResendCodeHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            // CORS headers
             exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
             exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
             exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
-
+            
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
                 exchange.sendResponseHeaders(204, -1);
                 exchange.close();
                 return;
             }
+            
             if (!"POST".equals(exchange.getRequestMethod())) {
                 exchange.sendResponseHeaders(405, -1);
                 exchange.close();
                 return;
             }
-
+            
             try {
-                InputStreamReader isr = new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8);
-                BufferedReader br = new BufferedReader(isr);
-                StringBuilder requestBody = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) {
-                    requestBody.append(line);
-                }
-
-                Map<String, String> data = gson.fromJson(requestBody.toString(), Map.class);
+                String requestBody = readRequestBody(exchange.getRequestBody());
+                System.out.println("📝 Resend запрос: " + requestBody);
+                
+                Map<String, String> data = gson.fromJson(requestBody, Map.class);
                 String email = data.get("email");
-
+                
                 String code = generateVerificationCode();
                 verificationCodes.put(email, new VerificationCode(code));
-
+                System.out.println("📧 Новый код для " + email + ": " + code);
+                
                 if (sendVerificationEmail(email, code)) {
-                    sendJsonResponse(exchange, 200, Map.of("status", "success"));
+                    Map<String, String> response = new HashMap<>();
+                    response.put("status", "success");
+                    sendJsonResponse(exchange, 200, response);
                 } else {
-                    sendJsonResponse(exchange, 500, Map.of("error", "Ошибка отправки email"));
+                    Map<String, String> error = new HashMap<>();
+                    error.put("error", "Ошибка отправки email");
+                    sendJsonResponse(exchange, 500, error);
                 }
-
+                
             } catch (Exception e) {
                 e.printStackTrace();
-                sendJsonResponse(exchange, 500, Map.of("error", e.getMessage()));
+                Map<String, String> error = new HashMap<>();
+                error.put("error", e.getMessage());
+                sendJsonResponse(exchange, 500, error);
             } finally {
                 exchange.close();
             }
         }
     }
 
-    private static void sendJsonResponse(HttpExchange exchange, int status, Map<String, ?> response) throws IOException {
+    private static void sendJsonResponse(HttpExchange exchange, int status, Map<?, ?> response) throws IOException {
         String json = gson.toJson(response);
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
-
+        
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
         exchange.sendResponseHeaders(status, bytes.length);
-
+        
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(bytes);
+        }
+    }
+
+    public static void main(String[] args) {
+        try {
+            startAuthServer();
+            System.out.println("============================================================");
+            System.out.println("🚀 AUTH СЕРВЕР ГОТОВ К РАБОТЕ");
+            System.out.println("============================================================");
+            System.out.println("🔐 Endpoints:");
+            System.out.println("   POST /api/register");
+            System.out.println("   POST /api/login");
+            System.out.println("   POST /api/verify");
+            System.out.println("   POST /api/resend-code");
+            System.out.println("============================================================");
+            
+            Thread.currentThread().join();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }

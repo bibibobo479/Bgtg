@@ -15,9 +15,9 @@ import java.util.concurrent.Executors;
 public class WebClient {
 
     private static final String STATIC_DIR = "src/main/resources/static";
-    private static final String AUTH_SERVER_URL = "http://localhost:8083";
-    private static final String SERVER_URL = "http://localhost:8080";
-    private static final String FILE_SERVER_URL = "http://localhost:8081";
+    private static final String AUTH_SERVER_URL = "http://188.92.28.209:8083";
+    private static final String SERVER_URL = "http://188.92.28.209:8080";
+    private static final String FILE_SERVER_URL = "http://188.92.28.209:8081";
 
     public static void main(String[] args) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", 5001), 0);
@@ -208,7 +208,7 @@ public class WebClient {
             String path = exchange.getRequestURI().getPath();
             String query = exchange.getRequestURI().getQuery();
 
-            String url = "http://localhost:8082" + path;
+            String url = "http://188.92.28.209:8082" + path;
             if (query != null) {
                 url += "?" + query;
             }
